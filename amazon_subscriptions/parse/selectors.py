@@ -41,7 +41,11 @@ PRODUCT_TITLE = "#productTitle"
 PRODUCT_AVAILABILITY = "#availability"
 PRODUCT_OFFER = "#corePrice_feature_div"
 PRODUCT_OFFER_CAPTION = "#newAccordionCaption_feature_div"
-PRODUCT_OFFER_SELLER = "#sellerProfileTriggerId"
+# The seller name as the row shows it. Signed in, #sellerProfileTriggerId is a link labeled with a help text instead.
+PRODUCT_OFFER_SELLER = (
+    "[offer-display-feature-name='desktop-merchant-info-collapsed'] .offer-display-feature-text-message"
+)
+PRODUCT_OFFER_SELLER_LINK = "#sellerProfileTriggerId[href*='seller=']"
 PRODUCT_PRICE = ".apex-pricetopay-value .a-offscreen"
 PRODUCT_UNIT_PRICE = ".apex-priceperunit-accessibility-label"
 PRODUCT_PRICE_DISPLAY = "#corePriceDisplay_desktop_feature_div"
