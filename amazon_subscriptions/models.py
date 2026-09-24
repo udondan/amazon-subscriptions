@@ -91,5 +91,5 @@ class UpcomingDelivery:
     total: Decimal | None = None
     currency: str | None = None
     delivery_bundle_id: str | None = None
-    #: Path of the delivery page, relative to the storefront.
+    #: URL of the delivery page.
     url: str | None = None
