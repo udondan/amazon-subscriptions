@@ -36,6 +36,9 @@ class DeSubscriptionLocale(SubscriptionLocale):
     MAX_DISCOUNT_UNLOCKED_TEXT = "Maximale Einsparungen freigeschaltet"
     SUBSTITUTE_ALERT_TEXTS: ClassVar[list[str]] = ["Backup-Produkt wird versendet"]
 
+    UNIT_PRICE_RE = re.compile(r"(.+?) pro (.+)")
+    LIST_PRICE_LABELS: ClassVar[list[str]] = ["UVP"]
+
     AMOUNT_RE = re.compile(r"(-?(?:\d{1,3}(?:\.\d{3})+|\d+))(?:,(\d{1,2}))?")
     THOUSANDS_SEPARATOR = "."
     AMOUNT_NOISE_RE = re.compile(r"€|EUR")

@@ -72,16 +72,22 @@ cli.add_command(logout)
 cli.add_command(check_session)
 
 
-def _client(ctx: click.Context) -> SubscriptionsClient:
-    return SubscriptionsClient(ctx.obj["amazon_session"])
+def _client(ctx: click.Context, with_prices: bool = False) -> SubscriptionsClient:
+    return SubscriptionsClient(ctx.obj["amazon_session"], with_prices=with_prices)
 
 
 @cli.command("list")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Print JSON.")
+@click.option(
+    "--with-prices",
+    is_flag=True,
+    default=False,
+    help="Also load each product page for the regular price, list price and unit price (one request each).",
+)
 @click.pass_context
-def list_subscriptions(ctx: click.Context, as_json: bool) -> None:
+def list_subscriptions(ctx: click.Context, as_json: bool, with_prices: bool) -> None:
     """List all subscriptions."""
-    subscriptions = _client(ctx).get_subscriptions()
+    subscriptions = _client(ctx, with_prices).get_subscriptions()
     if as_json:
         click.echo(to_json(subscriptions))
         return
@@ -123,6 +129,9 @@ def _format_amount(amount: Any, currency: str | None) -> str:
 def _format_subscription(s: Subscription) -> str:
     date = s.next_delivery_date.isoformat() if s.next_delivery_date else "?"
     price = f"  {_format_amount(s.subscription_price, s.currency)}" if s.subscription_price is not None else ""
+    if s.price is not None:
+        unit = f", {_format_amount(s.unit_price, s.currency)}/{s.unit_price_unit}" if s.unit_price is not None else ""
+        price += f"  (regular {_format_amount(s.price, s.currency)}{unit})"
     status = f"  [{s.status.value}]" if s.status.value not in ("active", "unknown") else ""
     return f"{date}  {s.quantity or '?'} x {s.title or s.asin}  ({_format_interval(s.interval)}){price}{status}"
 

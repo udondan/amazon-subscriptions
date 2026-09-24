@@ -26,6 +26,9 @@ DE_SUBSCRIPTIONS_PAGINATE_URL = re.compile(
     re.escape(DE_BASE_URL) + r"/acp/myd-hub-subscriptions-card-desktop/[^/]+/paginate\?.*"
 )
 DE_DETAIL_URL = re.compile(re.escape(DE_BASE_URL) + r"/auto-deliveries/ajax/subscription/\?.*")
+DE_PRODUCT_URL = re.compile(re.escape(DE_BASE_URL) + r"/dp/[A-Z0-9]{10}")
+#: The product page fixtures by ASIN; all other ASINs get ``de/product.html``.
+DE_PRODUCT_PAGES = {"B0TEST0024": "product-list-price", "B0TEST0025": "product-unavailable"}
 DE_DELIVERIES_PAGINATE_URL = re.compile(
     re.escape(DE_BASE_URL) + r"/acp/myd-hub-deliveries-card-desktop/[^/]+/paginate\?.*"
 )
@@ -70,6 +73,17 @@ def _delivery_page(request: PreparedRequest) -> tuple[int, dict[str, str], bytes
     epoch = parse_qs(urlparse(request.url or "").query)["deliveryDate"][0]
     name = "delivery-2" if epoch == DE_DELIVERY_2_EPOCH else "delivery-1"
     return 200, {"Content-Type": "text/html;charset=UTF-8"}, read_fixture(f"de/{name}.html").encode()
+
+
+def _product_page(request: PreparedRequest) -> tuple[int, dict[str, str], bytes]:
+    asin = urlparse(request.url or "").path.rsplit("/", 1)[-1]
+    name = DE_PRODUCT_PAGES.get(asin, "product")
+    return 200, {"Content-Type": "text/html;charset=UTF-8"}, read_fixture(f"de/{name}.html").encode()
+
+
+def register_de_product_pages(mock: responses.RequestsMock) -> None:
+    """Answer the requests of product pages with the amazon.de product fixtures."""
+    mock.add_callback(responses.GET, DE_PRODUCT_URL, _product_page)
 
 
 def register_de_pages(mock: responses.RequestsMock, landing: str | None = None) -> None:

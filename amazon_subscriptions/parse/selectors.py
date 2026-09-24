@@ -35,6 +35,17 @@ DELIVERY_ITEM_ALERT = "[data-testid='subscription-item-alert']"
 SUBSCRIPTION_DETAIL_BACKUP_LINK = "a[href*='/backupItem'][href*='ASIN=']"
 SUBSCRIPTION_DETAIL_BACKUP_TITLE = ".actionDetail"
 
+# Product page (/dp/<ASIN>). The offer row holds the one-time price, the price display above it the list price.
+PRODUCT_TITLE = "#productTitle"
+PRODUCT_AVAILABILITY = "#availability"
+PRODUCT_OFFER = "#corePrice_feature_div"
+PRODUCT_PRICE = ".apex-pricetopay-value .a-offscreen"
+PRODUCT_UNIT_PRICE = ".apex-priceperunit-accessibility-label"
+PRODUCT_PRICE_DISPLAY = "#corePriceDisplay_desktop_feature_div"
+PRODUCT_BASIS_PRICE = ".basisPrice"
+PRODUCT_BASIS_PRICE_LABEL = ".apex-basisprice-label"
+PRODUCT_BASIS_PRICE_VALUE = ".apex-basisprice-value .a-offscreen"
+
 # Pages that are not the requested one
 CAPTCHA = ["form[action*='validateCaptcha']", "#captchacharacters", "img[src*='/captcha/']"]
 SIGN_IN = ["form[name='signIn']", "#ap_email", "#ap_password", "#auth-mfa-otpcode"]
