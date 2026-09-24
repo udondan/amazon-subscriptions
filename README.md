@@ -21,6 +21,9 @@ uv sync
 
 The installation includes amazon-orders; its CLI is not needed.
 
+There is no package on PyPI yet: the amazon.de support of amazon-orders is not released yet, so it is required from a
+commit of a fork, and PyPI does not accept dependencies like that.
+
 ## Usage
 
 ```sh
@@ -200,9 +203,16 @@ Login, session and cookies of amazon.com are already handled by amazon-orders.
 
 ## Development
 
+With [mise](https://mise.jdx.dev/), which installs Python and uv:
+
 ```sh
-uv sync
-uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
+mise run install    # uv sync
+mise run lint       # ruff, ruff format and mypy
+mise run lint-fix
+mise run test       # pytest
 ```
+
+Pull request titles and commits follow [Conventional Commits](https://www.conventionalcommits.org/); release-please
+creates the releases and the changelog from them.
 
 The test fixtures in `tests/fixtures` are anonymized pages of amazon.de, see `scripts/anonymize_fixtures.py`.

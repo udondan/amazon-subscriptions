@@ -1,0 +1,42 @@
+---
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    # Off until amazon-orders is required by version instead of by git URL, which PyPI rejects. Set the repository
+    # variable PUBLISH_TO_PYPI to true to publish.
+    if: vars.PUBLISH_TO_PYPI == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/amazon-subscriptions
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Refuse dependencies by URL
+        run: |
+          if grep -n ' @ git+' pyproject.toml; then
+            echo "::error file=pyproject.toml::PyPI rejects dependencies by URL. Require a released version instead."
+            exit 1
+          fi
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+
+      - name: Build
+        run: uv build
+
+      # Trusted publishing: PyPI trusts this workflow and the pypi environment, no token needed.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
