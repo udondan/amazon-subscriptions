@@ -137,6 +137,16 @@ def test_next_page_of_deliveries(
     assert "&amp;" not in next_url
 
 
+def test_empty_next_page_of_deliveries(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    # Amazon's answer if there are no further deliveries
+    register_de_pages(mock, landing=read_fixture("de/landing.html"))
+    mock.post(DE_DELIVERIES_PAGINATE_URL, body=b"<div></div>", content_type="text/html")
+
+    deliveries = make_client(tmp_path).get_upcoming_deliveries()
+
+    assert [d.date for d in deliveries] == [date(2026, 10, 1), date(2026, 11, 1)]
+
+
 def test_next_page_of_deliveries_without_cards(tmp_path: Path, mock: responses.RequestsMock) -> None:
     register_de_pages(mock, landing=read_fixture("de/landing.html"))
     mock.post(DE_DELIVERIES_PAGINATE_URL, body=b"<div>Neu</div>", content_type="text/html")

@@ -24,14 +24,17 @@ def parse_delivery_cards(
 ) -> list[UpcomingDelivery]:
     """Parse the delivery cards of the landing page, without items. Their ``url`` leads to the delivery page.
 
-    :param fragment: ``True`` for a fragment returned by the pagination of the deliveries widget, which must have
-        cards. The landing page must have the widget, but may have no cards.
-    :raises PageStructureError: If the landing page has no deliveries widget, a fragment has no cards, or a card has
-        no date.
+    :param fragment: ``True`` for a fragment returned by the pagination of the deliveries widget. It is empty
+        (``<div></div>``) if there are no further deliveries, else it must have cards. The landing page must have the
+        widget, but may have no cards.
+    :raises PageStructureError: If the landing page has no deliveries widget, a fragment with content has no cards,
+        or a card has no date.
     """
     soup = soup_of(html)
     check_page(soup, page)
     cards = soup.select(selectors.DELIVERY_CARD)
+    if fragment and not cards and not soup.get_text(strip=True) and not soup.find(["img", "a", "span"]):
+        return []
     if fragment and not cards:
         raise PageStructureError(f"No delivery cards found ({selectors.DELIVERY_CARD!r})", page)
     if not fragment and soup.select_one(selectors.DELIVERIES_WIDGET) is None:
