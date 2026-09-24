@@ -1,0 +1,55 @@
+[project]
+name = "amazon-subscriptions"
+version = "0.0.0"
+description = "Read Amazon Subscribe & Save subscriptions and upcoming deliveries as JSON (read-only)"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Daniel Schroeder" }]
+requires-python = ">=3.10"
+dependencies = [
+    "amazon-orders @ git+https://github.com/udondan/amazon-orders@b454bffa4d88b4953b05f74a31151d40119c29b4",
+    "beautifulsoup4==4.15.0",
+    "click==8.5.0",
+]
+
+[project.scripts]
+amazon-subscriptions = "amazon_subscriptions.cli:cli"
+
+[dependency-groups]
+dev = [
+    "mypy==2.3.1",
+    "pytest==9.1.1",
+    "responses==0.26.3",
+    "ruff==0.16.8",
+    "types-requests==2.33.0.20260906",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["amazon_subscriptions"]
+
+[tool.ruff]
+line-length = 119
+target-version = "py310"
+extend-exclude = ["scripts/vendor"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["amazon_subscriptions"]
+
+[[tool.mypy.overrides]]
+module = ["amazonorders.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,130 @@
+import json
+from collections.abc import Iterator
+from datetime import date
+from functools import partial
+from pathlib import Path
+
+import amazonorders.cli
+import amazonorders.conf
+import pytest
+import responses
+from amazonorders.conf import AmazonOrdersConfig
+from click.testing import CliRunner
+
+from amazon_subscriptions import cli as cli_module
+from amazon_subscriptions.cli import cli
+from amazon_subscriptions.client import SubscriptionsClient
+from tests.conftest import DE_LANDING_URL, DE_TODAY, register_de_pages, store_login_cookies
+
+
+@pytest.fixture(autouse=True)
+def config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Keep the config and cookies of amazon-orders below ``tmp_path``."""
+    monkeypatch.setattr(amazonorders.conf, "DEFAULT_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setattr(cli_module, "SubscriptionsClient", partial(SubscriptionsClient, today=DE_TODAY))
+    return tmp_path
+
+
+@pytest.fixture
+def mock() -> Iterator[responses.RequestsMock]:
+    with responses.RequestsMock(assert_all_requests_are_fired=False) as mock:
+        yield mock
+
+
+def log_in(domain: str) -> None:
+    store_login_cookies(AmazonOrdersConfig(data={"domain": domain}))
+
+
+@pytest.mark.parametrize("name", ["login", "logout", "check-session"])
+def test_session_commands_are_those_of_amazon_orders(name: str) -> None:
+    assert cli.commands[name] is amazonorders.cli.amazon_orders_cli.commands[name]
+
+
+def test_login_uses_the_session(config_dir: Path) -> None:
+    log_in("amazon.de")
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "login"])
+    assert result.exit_code == 0, result.output
+    assert "A persisted session exists" in result.output
+
+
+def test_check_session() -> None:
+    result = CliRunner().invoke(cli, ["check-session"])
+    assert result.exit_code == 0, result.output
+    assert "No persisted session exists" in result.output
+
+
+def test_logout(config_dir: Path) -> None:
+    log_in("amazon.de")
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "logout"])
+    assert result.exit_code == 0, result.output
+    assert json.loads((config_dir / "cookies.json").read_text()) == {}
+
+
+@pytest.mark.parametrize(
+    ("args", "hint"),
+    [
+        ([], "amazon-subscriptions login"),
+        (["--domain", "amazon.de"], "amazon-subscriptions --domain amazon.de login"),
+    ],
+)
+def test_expired_session_shows_how_to_log_in(
+    args: list[str], hint: str, config_dir: Path, mock: responses.RequestsMock
+) -> None:
+    # Without --domain, the domain configured for amazon-orders is used
+    (config_dir / "config.yml").write_text("domain: amazon.de\n")
+    result = CliRunner().invoke(cli, [*args, "list"])
+    assert result.exit_code == 1
+    assert hint in result.output
+    assert hint.replace(" login", " logout") in result.output
+    assert len(mock.calls) == 0
+
+
+def test_list_json(mock: responses.RequestsMock) -> None:
+    log_in("amazon.de")
+    register_de_pages(mock)
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "list", "--json"])
+    assert result.exit_code == 0, result.output
+
+    subscriptions = json.loads(result.output)
+    assert len(subscriptions) == 32
+    assert all(date.fromisoformat(s["next_delivery_date"]) >= DE_TODAY for s in subscriptions)
+    assert any(isinstance(s["subscription_price"], str) for s in subscriptions)
+
+
+def test_list_text(mock: responses.RequestsMock) -> None:
+    log_in("amazon.de")
+    register_de_pages(mock)
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "list"])
+    assert result.exit_code == 0, result.output
+    assert result.output.rstrip().endswith("32 subscriptions")
+    assert "2026-10-01  " in result.output
+
+
+def test_upcoming(mock: responses.RequestsMock) -> None:
+    log_in("amazon.de")
+    register_de_pages(mock)
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "upcoming"])
+    assert result.exit_code == 0, result.output
+    assert "2026-10-01: 11 items, total 150.19 EUR, changes until 2026-09-26" in result.output
+    assert "2026-11-01: 16 items, total - EUR" not in result.output
+    assert "2026-11-01: 16 items, total -" in result.output
+
+
+def test_upcoming_json(mock: responses.RequestsMock) -> None:
+    log_in("amazon.de")
+    register_de_pages(mock)
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "upcoming", "--json"])
+    assert result.exit_code == 0, result.output
+    deliveries = json.loads(result.output)
+    assert [(d["date"], d["total"], d["currency"]) for d in deliveries] == [
+        ("2026-10-01", "150.19", "EUR"),
+        ("2026-11-01", None, "EUR"),
+    ]
+
+
+def test_changed_page_is_an_error(mock: responses.RequestsMock) -> None:
+    log_in("amazon.de")
+    mock.get(DE_LANDING_URL, body="<html><body>Etwas Neues</body></html>")
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "list", "--json"])
+    assert result.exit_code == 1
+    assert "Error: No subscriptions found" in result.output
