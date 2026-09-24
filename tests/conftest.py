@@ -25,6 +25,7 @@ DE_DELIVERY_2_EPOCH = "1793487600000"
 DE_SUBSCRIPTIONS_PAGINATE_URL = re.compile(
     re.escape(DE_BASE_URL) + r"/acp/myd-hub-subscriptions-card-desktop/[^/]+/paginate\?.*"
 )
+DE_DETAIL_URL = re.compile(re.escape(DE_BASE_URL) + r"/auto-deliveries/ajax/subscription/\?.*")
 DE_DELIVERIES_PAGINATE_URL = re.compile(
     re.escape(DE_BASE_URL) + r"/acp/myd-hub-deliveries-card-desktop/[^/]+/paginate\?.*"
 )
@@ -84,3 +85,4 @@ def register_de_pages(mock: responses.RequestsMock, landing: str | None = None) 
         content_type="text/html",
     )
     mock.add_callback(responses.GET, re.compile(re.escape(DE_BASE_URL) + r"/auto-deliveries/\?.*"), _delivery_page)
+    mock.get(DE_DETAIL_URL, body=read_fixture("de/subscription-detail.html").encode(), content_type="text/html")

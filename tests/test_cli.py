@@ -108,6 +108,7 @@ def test_upcoming(mock: responses.RequestsMock) -> None:
     assert "2026-10-01: 11 items, total 150.19 EUR, changes until 2026-09-26" in result.output
     assert "2026-11-01: 16 items, total - EUR" not in result.output
     assert "2026-11-01: 16 items, total -" in result.output
+    assert "  [backup product B0TEST0056]" in result.output
 
 
 def test_upcoming_json(mock: responses.RequestsMock) -> None:
@@ -120,6 +121,8 @@ def test_upcoming_json(mock: responses.RequestsMock) -> None:
         ("2026-10-01", "150.19", "EUR"),
         ("2026-11-01", None, "EUR"),
     ]
+    [substitute] = [item for d in deliveries for item in d["items"] if item["substitute"]]
+    assert (substitute["asin"], substitute["substitute_asin"]) == ("B0TEST0024", "B0TEST0056")
 
 
 def test_changed_page_is_an_error(mock: responses.RequestsMock) -> None:

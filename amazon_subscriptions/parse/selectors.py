@@ -31,6 +31,10 @@ DELIVERY_ITEM_PRICE = "[data-testid='product-price']"
 DELIVERY_ITEM_DISCOUNT = "[data-testid='product-savings']"
 DELIVERY_ITEM_ALERT = "[data-testid='subscription-item-alert']"
 
+# Detail sheet of a subscription (/auto-deliveries/ajax/subscription/?subscriptionId=...)
+SUBSCRIPTION_DETAIL_BACKUP_LINK = "a[href*='/backupItem'][href*='ASIN=']"
+SUBSCRIPTION_DETAIL_BACKUP_TITLE = ".actionDetail"
+
 # Pages that are not the requested one
 CAPTCHA = ["form[action*='validateCaptcha']", "#captchacharacters", "img[src*='/captcha/']"]
 SIGN_IN = ["form[name='signIn']", "#ap_email", "#ap_password", "#auth-mfa-otpcode"]

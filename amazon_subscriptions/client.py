@@ -18,26 +18,35 @@ from amazonorders.session import AmazonSession
 from bs4 import BeautifulSoup
 from requests import Response
 
-from amazon_subscriptions.exceptions import PageStructureError, SessionExpiredError, SubscriptionsError
+from amazon_subscriptions.exceptions import (
+    CaptchaError,
+    PageStructureError,
+    SessionExpiredError,
+    SubscriptionsError,
+)
 from amazon_subscriptions.locales import get_locale
 from amazon_subscriptions.locales.base import SubscriptionLocale
 from amazon_subscriptions.models import Subscription, UpcomingDelivery
 from amazon_subscriptions.parse import (
     AcpWidget,
+    BackupItem,
     match_deliveries,
     parse_acp_widget,
     parse_deliveries_next_url,
     parse_delivery_cards,
     parse_delivery_page,
+    parse_subscription_detail,
     parse_subscriptions,
     parse_subscriptions_next_url,
     selectors,
+    titles_match,
 )
 from amazon_subscriptions.parse.util import Html
 
 logger = logging.getLogger(__name__)
 
 LANDING_PATH = "/auto-deliveries"
+DETAIL_PATH = "/auto-deliveries/ajax/subscription/"
 
 #: The only URLs (path and query) the client requests. Everything else is refused with a
 #: :class:`~amazon_subscriptions.exceptions.SubscriptionsError` before it is sent.
@@ -46,6 +55,8 @@ READ_ONLY_URLS = [
     re.compile(r"/auto-deliveries/?"),
     # Delivery page, as linked by a delivery card
     re.compile(r"/auto-deliveries/?\?(?!.*ajax)(?=.*\bdeliveryDate=\d+).*"),
+    # Detail sheet of a subscription, as opened by a subscription tile
+    re.compile(r"/auto-deliveries/ajax/subscription/?\?(?=.*\bsubscriptionId=)[^#]*"),
     # Next page of the subscriptions and deliveries widgets of the landing page
     re.compile(r"/acp/myd-hub-(?:subscriptions|deliveries)-card-desktop/[^/?]+/paginate\?[^/]*"),
 ]
@@ -112,6 +123,7 @@ class SubscriptionsClient:
         subscriptions = self._load_subscriptions(landing, landing_url)
         deliveries = [self._load_delivery(card) for card in self._load_delivery_cards(landing, landing_url)]
         match_deliveries(subscriptions, deliveries)
+        self._load_substitutes(subscriptions, deliveries)
         self._pages = _Pages(subscriptions, deliveries)
         return self._pages
 
@@ -152,6 +164,44 @@ class SubscriptionsClient:
         delivery.delivery_bundle_id = card.delivery_bundle_id
         delivery.url = url
         return delivery
+
+    def _load_substitutes(self, subscriptions: list[Subscription], deliveries: list[UpcomingDelivery]) -> None:
+        """Set the ASIN of the backup products sent instead of subscribed ones.
+
+        Delivery pages show no ASINs, so the detail sheet of the subscription is loaded, which names its backup
+        product. It is only used if its title matches the item's title.
+        """
+        by_id = {s.subscription_id: s for s in subscriptions}
+        backups: dict[str, BackupItem | None] = {}
+        for delivery in deliveries:
+            for item in delivery.items:
+                subscription = by_id.get(item.subscription_id or "")
+                if not item.substitute or subscription is None:
+                    continue
+                if subscription.subscription_id not in backups:
+                    backups[subscription.subscription_id] = self._load_backup_item(subscription)
+                backup = backups[subscription.subscription_id]
+                if backup is not None and titles_match(backup.title, item.title):
+                    item.substitute_asin = backup.asin
+                else:
+                    logger.warning(
+                        f"The backup product of subscription {subscription.subscription_id} is not the item "
+                        f"{item.title!r} of {delivery.date}, so its ASIN is not known."
+                    )
+
+    def _load_backup_item(self, subscription: Subscription) -> BackupItem | None:
+        query = {"subscriptionId": subscription.subscription_id, "enableMydExperience": "1", "clientName": "mydHub"}
+        if subscription.asin:
+            query["subAsin"] = subscription.asin
+        url = self._absolute(f"{DETAIL_PATH}?{urlencode(query)}")
+        try:
+            html = self._get(url)
+        except (SessionExpiredError, CaptchaError):
+            raise
+        except SubscriptionsError as e:
+            logger.warning(f"The detail sheet of subscription {subscription.subscription_id} was not loaded: {e}")
+            return None
+        return parse_subscription_detail(self._soup(html), url)
 
     def _paginate(
         self, landing: BeautifulSoup, next_page_selector: str, next_url_of: Callable[[Html], str | None], name: str

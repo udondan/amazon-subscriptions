@@ -68,7 +68,11 @@ class DeliveryItem:
     #: The subscription of this item. Delivery pages do not link items to subscriptions, so they are matched by
     #: title (see :func:`amazon_subscriptions.parse.matching.match_deliveries`). ``None`` if no unique match.
     subscription_id: str | None = None
+    #: ASIN of the subscribed product, also if a backup product is sent instead.
     asin: str | None = None
+    #: ASIN of the backup product if ``substitute`` is ``True``. ``title``, ``price`` and ``discount_percent`` are then
+    #: the ones of the backup product. ``None`` if it could not be read from the subscription's detail sheet.
+    substitute_asin: str | None = None
 
 
 @dataclass

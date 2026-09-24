@@ -124,7 +124,8 @@ A list of deliveries:
         "alert_text": null,
         "substitute": false,
         "subscription_id": "…",
-        "asin": "B0TEST0001"
+        "asin": "B0TEST0001",
+        "substitute_asin": null
       }
     ],
     "discount_tier": {"item_count": 11, "max_discount_unlocked": true, "savings": "12.34"},
@@ -141,6 +142,7 @@ A list of deliveries:
 | `change_deadline` | The last day to change the delivery. |
 | `items[].price` | Price of the whole quantity with the discount applied. Amazon shows prices only for the next delivery. |
 | `items[].substitute` | `true` if a backup product is sent instead of the subscribed one; `alert_text` has Amazon's note. |
+| `items[].asin`, `items[].substitute_asin` | `asin` is always the subscribed product. If `substitute` is `true`, `title`, `price` and `discount_percent` are those of the backup product, and `substitute_asin` is its ASIN. It is read from the subscription's detail sheet and is `null` if that sheet names another backup product. |
 | `items[].subscription_id` | The subscription of the item. Delivery pages do not link items to subscriptions, so they are matched by title, quantity and interval; `null` if there is no unique match. |
 | `total` | Sum of the item prices, `null` if an item has no price. |
 
@@ -164,9 +166,9 @@ The parsers in `amazon_subscriptions.parse` are pure functions of the page HTML 
 ## Read-only
 
 The client only requests the Subscribe & Save overview, the further pages of its lists (loaded like the browser does
-when scrolling) and the page of each upcoming delivery. Every URL is checked against an allow-list before it is
-requested, so links that change subscriptions (skip, pause, cancel, change quantity or interval, deliver now) are
-never requested.
+when scrolling), the page of each upcoming delivery and, if a backup product is sent instead of a subscribed one, the
+detail sheet of that subscription. Every URL is checked against an allow-list before it is requested, so links that
+change subscriptions (skip, pause, cancel, change quantity or interval, deliver now) are never requested.
 
 ## Limitations
 

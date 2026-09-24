@@ -132,7 +132,9 @@ def _format_delivery(d: UpcomingDelivery) -> str:
     lines = [f"{d.date.isoformat()}: {len(d.items)} items, total {_format_amount(d.total, d.currency)}{deadline}"]
     for item in d.items:
         discount = f" (-{item.discount_percent}%)" if item.discount_percent is not None else ""
-        substitute = "  [backup product]" if item.substitute else ""
+        substitute = ""
+        if item.substitute:
+            substitute = f"  [backup product {item.substitute_asin}]" if item.substitute_asin else "  [backup product]"
         price = _format_amount(item.price, d.currency)
         lines.append(f"  {item.quantity or '?'} x {item.title}  {price}{discount}{substitute}")
     return "\n".join(lines)
