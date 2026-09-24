@@ -13,7 +13,7 @@
     {
       "type": "toml",
       "path": "uv.lock",
-      "jsonpath": "$.package[?(@.name==='amazon-subscriptions')].version"
+      "jsonpath": "$.package[?(@.name.value==='amazon-subscriptions')].version"
     }
   ],
   "packages": {
