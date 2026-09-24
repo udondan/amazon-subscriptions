@@ -28,7 +28,6 @@ import json
 import os
 import re
 import sys
-from typing import Dict, List, Tuple
 
 from bs4 import BeautifulSoup
 
@@ -38,10 +37,46 @@ assert _spec and _spec.loader
 base = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(base)
 
-FILLER_WORDS = ["Lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit", "sed", "do",
-                "eiusmod", "tempor", "incididunt", "ut", "labore", "et", "dolore", "magna", "aliqua", "enim",
-                "minim", "veniam", "quis", "nostrud", "exercitation", "ullamco", "laboris", "nisi", "aliquip",
-                "commodo", "consequat", "duis", "aute", "irure", "reprehenderit", "voluptate", "velit", "esse"]
+FILLER_WORDS = [
+    "Lorem",
+    "ipsum",
+    "dolor",
+    "sit",
+    "amet",
+    "consectetur",
+    "adipiscing",
+    "elit",
+    "sed",
+    "do",
+    "eiusmod",
+    "tempor",
+    "incididunt",
+    "ut",
+    "labore",
+    "et",
+    "dolore",
+    "magna",
+    "aliqua",
+    "enim",
+    "minim",
+    "veniam",
+    "quis",
+    "nostrud",
+    "exercitation",
+    "ullamco",
+    "laboris",
+    "nisi",
+    "aliquip",
+    "commodo",
+    "consequat",
+    "duis",
+    "aute",
+    "irure",
+    "reprehenderit",
+    "voluptate",
+    "velit",
+    "esse",
+]
 # A title counts as a variant of a known title if this share of its words line up
 TITLE_MATCH_RATIO = 0.5
 
@@ -52,8 +87,11 @@ TITLE_SELECTORS = [
     ".productInformation a[href*='/dp/']",  # subscription detail sheet (other links there are UI text)
 ]
 IMAGE_ALT_MIN_LENGTH = 15
-EXTRA_ASIN_REGEXES = [re.compile(r"subAsin=([A-Z0-9]{10})\b"), re.compile(r"data-asin=\"([A-Z0-9]{10})\""),
-                      re.compile(r"\bASIN=([A-Z0-9]{10})\b")]
+EXTRA_ASIN_REGEXES = [
+    re.compile(r"subAsin=([A-Z0-9]{10})\b"),
+    re.compile(r"data-asin=\"([A-Z0-9]{10})\""),
+    re.compile(r"\bASIN=([A-Z0-9]{10})\b"),
+]
 SUBSCRIPTION_ID_REGEX = re.compile(r"SNS[A-Z][0-9]_[A-Z0-9]{8,}")
 BUNDLE_ID_REGEX = re.compile(r"(deliveryBundleId(?:=|%3D|\"\s*:\s*\"))([A-Za-z0-9_-]{6,})")
 SHIP_ID_REGEX = re.compile(r"(?:shipId(?:=|%3D)|\"shippingIds\"\s*:\s*\"|shipId\"\s*:\s*\")([a-z0-9]{8,16})\b")
@@ -62,17 +100,17 @@ ACP_TOKEN_REGEX = re.compile(r"\b(?:tok|rid)=([^;\"&]{8,})")
 ADDRESS_TESTIDS = ["[data-testid='address-content']", "[data-testid='delivery-address']"]
 
 
-def _words(text: str) -> List[str]:
+def _words(text: str) -> list[str]:
     return re.sub(r"\s+", " ", text).strip().split(" ")
 
 
 class SubscriptionsAnonymizer(base.Anonymizer):  # type: ignore[name-defined,misc]
-    def __init__(self, rules: Dict) -> None:
+    def __init__(self, rules: dict) -> None:
         super().__init__(rules)
         # Known titles as word lists, with their fake word lists
-        self.title_bases: List[Tuple[List[str], List[str]]] = []
-        self.subscription_ids: Dict[str, str] = {}
-        self.bundle_ids: Dict[str, str] = {}
+        self.title_bases: list[tuple[list[str], list[str]]] = []
+        self.subscription_ids: dict[str, str] = {}
+        self.bundle_ids: dict[str, str] = {}
 
     def _digest(self, value: str) -> str:
         return hmac.new(self.salt, value.encode("utf-8"), hashlib.sha256).hexdigest().upper()
@@ -80,18 +118,19 @@ class SubscriptionsAnonymizer(base.Anonymizer):  # type: ignore[name-defined,mis
     def _filler(self, word: str) -> str:
         return FILLER_WORDS[int(self._digest(word), 16) % len(FILLER_WORDS)]
 
-    def _new_fake_title(self, words: List[str]) -> List[str]:
+    def _new_fake_title(self, words: list[str]) -> list[str]:
         number = len(self.title_bases) + 1
-        fake = ["Testartikel", f"{number:02d}"] + [FILLER_WORDS[(i + number) % len(FILLER_WORDS)]
-                                                   for i in range(max(0, len(words) - 2))]
-        return fake[:max(len(words), 2)]
+        fake = ["Testartikel", f"{number:02d}"] + [
+            FILLER_WORDS[(i + number) % len(FILLER_WORDS)] for i in range(max(0, len(words) - 2))
+        ]
+        return fake[: max(len(words), 2)]
 
-    def _fake_title(self, words: List[str]) -> List[str]:
+    def _fake_title(self, words: list[str]) -> list[str]:
         best, best_ratio = None, 0.0
         for known, fake in self.title_bases:
             ratio = difflib.SequenceMatcher(None, known, words).ratio()
             # A shortened title (a prefix of a known one) matches however short it is
-            if words == known[:len(words)] and len(words) >= 2:
+            if words == known[: len(words)] and len(words) >= 2:
                 ratio = 1.0
             if ratio > best_ratio:
                 best, best_ratio = (known, fake), ratio
@@ -100,7 +139,7 @@ class SubscriptionsAnonymizer(base.Anonymizer):  # type: ignore[name-defined,mis
             self.title_bases.append((words, fake))
             return fake
         known, known_fake = best
-        result: List[str] = []
+        result: list[str] = []
         for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, known, words).get_opcodes():
             if op == "equal":
                 result.extend(known_fake[i1:i2])
@@ -135,11 +174,11 @@ class SubscriptionsAnonymizer(base.Anonymizer):  # type: ignore[name-defined,mis
         super().collect_identifiers(html)
         for sub_id in SUBSCRIPTION_ID_REGEX.findall(html):
             if sub_id not in self.subscription_ids:
-                self.subscription_ids[sub_id] = sub_id[:6] + self._digest(sub_id)[:len(sub_id) - 6]
+                self.subscription_ids[sub_id] = sub_id[:6] + self._digest(sub_id)[: len(sub_id) - 6]
                 self.sensitive.add(sub_id)
         for _, bundle_id in BUNDLE_ID_REGEX.findall(html):
             if bundle_id not in self.bundle_ids:
-                self.bundle_ids[bundle_id] = self._digest(bundle_id)[:len(bundle_id)].lower()
+                self.bundle_ids[bundle_id] = self._digest(bundle_id)[: len(bundle_id)].lower()
                 self.sensitive.add(bundle_id)
         for ship_id in SHIP_ID_REGEX.findall(html):
             if ship_id != FAKE_SHIP_ID:
@@ -176,13 +215,17 @@ def main() -> None:
 
     pairs = [page.split(":") for page in args.pages]
     soups = [base.read_page(anonymizer, raw_path) for raw_path, *_ in pairs]
-    written = [base.write_page(anonymizer, soup, args.output_dir, out_rel)
-               for (_, out_rel, *_), soup in zip(pairs, soups)]
+    written = [
+        base.write_page(anonymizer, soup, args.output_dir, out_rel)
+        for (_, out_rel, *_), soup in zip(pairs, soups, strict=True)
+    ]
 
     results = [base.check_page(anonymizer, out_path) for out_path in written]
-    print(f"{len(anonymizer.titles)} titles, {len(anonymizer.asins)} ASINs, "
-          f"{len(anonymizer.subscription_ids)} subscription IDs, {len(anonymizer.bundle_ids)} bundle IDs replaced, "
-          f"{len(anonymizer.sensitive)} sensitive values checked.")
+    print(
+        f"{len(anonymizer.titles)} titles, {len(anonymizer.asins)} ASINs, "
+        f"{len(anonymizer.subscription_ids)} subscription IDs, {len(anonymizer.bundle_ids)} bundle IDs replaced, "
+        f"{len(anonymizer.sensitive)} sensitive values checked."
+    )
     if not all(results):
         sys.exit(1)
 
