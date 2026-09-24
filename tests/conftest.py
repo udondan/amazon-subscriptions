@@ -9,10 +9,12 @@ import pytest
 import responses
 from amazonorders.conf import AmazonOrdersConfig
 from amazonorders.session import AmazonSession
+from bs4 import BeautifulSoup
 from requests import PreparedRequest
 
 from amazon_subscriptions.locales import get_locale
 from amazon_subscriptions.locales.base import SubscriptionLocale
+from amazon_subscriptions.parse import selectors
 
 FIXTURES = Path(__file__).parent / "fixtures"
 #: The day the amazon.de fixtures were captured.
@@ -20,8 +22,14 @@ DE_TODAY = date(2026, 9, 24)
 
 DE_BASE_URL = "https://www.amazon.de"
 DE_LANDING_URL = f"{DE_BASE_URL}/auto-deliveries"
+#: ``deliveryDate`` of the first delivery card of the landing fixture, 1 October 2026 in Europe/Berlin
+DE_DELIVERY_1_EPOCH = "1790805600000"
 #: ``deliveryDate`` of the second delivery card of the landing fixture
 DE_DELIVERY_2_EPOCH = "1793487600000"
+#: The delivery page of the first delivery card
+DE_DELIVERY_1_URL = re.compile(
+    re.escape(DE_BASE_URL) + r"/auto-deliveries/\?.*\bdeliveryDate=" + DE_DELIVERY_1_EPOCH + r"\b.*"
+)
 DE_SUBSCRIPTIONS_PAGINATE_URL = re.compile(
     re.escape(DE_BASE_URL) + r"/acp/myd-hub-subscriptions-card-desktop/[^/]+/paginate\?.*"
 )
@@ -45,6 +53,31 @@ def read_fixture(name: str) -> str:
 @pytest.fixture(scope="session")
 def de() -> SubscriptionLocale:
     return get_locale("amazon.de")
+
+
+@pytest.fixture(autouse=True)
+def failed_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Save the pages that could not be read below ``tmp_path`` and retry them without waiting."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setattr("amazon_subscriptions.client.time.sleep", lambda seconds: None)
+    return tmp_path / "cache" / "amazon-subscriptions" / "failed"
+
+
+def delivery_1_without_date() -> str:
+    """The first delivery page without its delivery date, as Amazon once served it."""
+    soup = BeautifulSoup(read_fixture("de/delivery-1.html"), "html.parser")
+    for tag in soup.select(selectors.DELIVERY_DATE):
+        tag.decompose()
+    return str(soup)
+
+
+def register_broken_delivery_1(mock: responses.RequestsMock, times: int = 2) -> None:
+    """Answer the first ``times`` requests of the first delivery page with the page without delivery date.
+
+    Must be called before :func:`register_de_pages`, whose page is sent afterwards.
+    """
+    for _ in range(times):
+        mock.get(DE_DELIVERY_1_URL, body=delivery_1_without_date().encode(), content_type="text/html;charset=UTF-8")
 
 
 def without_deliveries_next_page(html: str) -> str:

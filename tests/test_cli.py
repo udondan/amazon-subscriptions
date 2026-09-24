@@ -14,7 +14,14 @@ from click.testing import CliRunner
 from amazon_subscriptions import cli as cli_module
 from amazon_subscriptions.cli import cli
 from amazon_subscriptions.client import SubscriptionsClient
-from tests.conftest import DE_LANDING_URL, DE_TODAY, register_de_pages, register_de_product_pages, store_login_cookies
+from tests.conftest import (
+    DE_LANDING_URL,
+    DE_TODAY,
+    register_broken_delivery_1,
+    register_de_pages,
+    register_de_product_pages,
+    store_login_cookies,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -150,6 +157,49 @@ def test_upcoming_json(mock: responses.RequestsMock) -> None:
     ]
     [substitute] = [item for d in deliveries for item in d["items"] if item["substitute"]]
     assert (substitute["asin"], substitute["substitute_asin"]) == ("B0TEST0024", "B0TEST0056")
+
+
+@pytest.mark.parametrize(
+    "args", [["list", "--json", "--with-prices"], ["list", "--json"], ["upcoming", "--json"], ["upcoming"]]
+)
+def test_delivery_page_without_date_is_a_partial_result(
+    mock: responses.RequestsMock, failed_dir: Path, args: list[str]
+) -> None:
+    log_in("amazon.de")
+    register_broken_delivery_1(mock)
+    register_de_pages(mock)
+    register_de_product_pages(mock)
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", *args])
+
+    assert result.exit_code == 2, result.output
+    [saved] = [p for p in failed_dir.iterdir() if p.name.endswith("_2.html")]
+    assert result.stderr.startswith("Error: No delivery date found, it was taken from the URL (page: https://")
+    assert f", page saved to {saved}\n" in result.stderr
+    if "--json" not in args:
+        assert "2026-10-01: 11 items, total 150.19 EUR, changes until 2026-09-26  [incomplete]" in result.stdout
+        return
+    objects = json.loads(result.stdout)
+    [error] = {json.dumps(e) for o in objects for e in o["parse_errors"]}
+    url = json.loads(error)["url"]
+    assert url.startswith(f"{DE_LANDING_URL}/?") and "deliveryDate=1790805600000" in url
+    assert json.loads(error) == {
+        "url": url,
+        "message": "No delivery date found, it was taken from the URL",
+        "selector": "[data-testid='ddp-atd-delivery-date']",
+        "html_path": str(saved),
+    }
+    if args[0] == "upcoming":
+        assert [(d["date"], len(d["items"])) for d in objects] == [("2026-10-01", 11), ("2026-11-01", 16)]
+
+
+def test_complete_result_has_no_errors(mock: responses.RequestsMock, failed_dir: Path) -> None:
+    log_in("amazon.de")
+    register_de_pages(mock)
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "upcoming", "--json"])
+    assert result.exit_code == 0, result.output
+    assert result.stderr == ""
+    assert all(d["parse_errors"] == [] for d in json.loads(result.stdout))
+    assert not failed_dir.exists()
 
 
 def test_changed_page_is_an_error(mock: responses.RequestsMock) -> None:

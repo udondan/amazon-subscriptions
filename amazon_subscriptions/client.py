@@ -5,18 +5,21 @@ links and forms that change subscriptions (skip, pause, cancel, deliver now, ...
 page changes.
 """
 
+import dataclasses
 import json
 import logging
 import os
 import re
+import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
+from typing import TypeVar
 from urllib.parse import urlencode, urljoin, urlparse
 
 from amazonorders.session import AmazonSession
 from bs4 import BeautifulSoup
-from requests import Response
+from requests import RequestException, Response
 
 from amazon_subscriptions.exceptions import (
     CaptchaError,
@@ -26,7 +29,7 @@ from amazon_subscriptions.exceptions import (
 )
 from amazon_subscriptions.locales import get_locale
 from amazon_subscriptions.locales.base import SubscriptionLocale
-from amazon_subscriptions.models import Subscription, UpcomingDelivery
+from amazon_subscriptions.models import DiscountTier, ParseError, Subscription, UpcomingDelivery
 from amazon_subscriptions.parse import (
     AcpWidget,
     BackupItem,
@@ -45,6 +48,8 @@ from amazon_subscriptions.parse import (
 from amazon_subscriptions.parse.util import Html
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 LANDING_PATH = "/auto-deliveries"
 DETAIL_PATH = "/auto-deliveries/ajax/subscription/"
@@ -82,6 +87,12 @@ ACP_HEADERS = {
 NAVIGATION_ONLY_HEADERS = ("Sec-Fetch-User", "Upgrade-Insecure-Requests")
 
 
+def default_failed_dir() -> str:
+    """``amazon-subscriptions/failed`` in the user's cache directory, where pages that could not be read are saved."""
+    cache_dir = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+    return os.path.join(cache_dir, "amazon-subscriptions", "failed")
+
+
 @dataclass
 class _Pages:
     """Everything loaded for one call, so both results come from the same state of the account."""
@@ -99,18 +110,39 @@ class SubscriptionsClient:
     :param max_pages: The maximum number of further pages loaded per widget, to never loop forever.
     :param with_prices: Also load the product page of each subscription for its regular price, list price and unit
         price, which the Subscribe & Save pages do not show. One more request per subscription.
+    :param retry_delay: Seconds to wait before loading a delivery or product page a second time that could not be
+        loaded or read.
+    :param failed_dir: The directory where delivery and product pages that could not be read are saved, defaults
+        to :func:`default_failed_dir`.
+
+    A delivery or product page that still fails the second time does not fail the call: the delivery or
+    subscription is returned with what is known from the other pages, and the error is added to its
+    ``parse_errors`` and to :attr:`errors`. Only the overview (landing page and its further pages) and an expired
+    session are fatal.
     """
 
     def __init__(
-        self, session: AmazonSession, today: date | None = None, max_pages: int = 20, with_prices: bool = False
+        self,
+        session: AmazonSession,
+        today: date | None = None,
+        max_pages: int = 20,
+        with_prices: bool = False,
+        retry_delay: float = 2.0,
+        failed_dir: str | None = None,
     ) -> None:
         self.session = session
         self.today = today or date.today()
         self.max_pages = max_pages
         self.with_prices = with_prices
+        self.retry_delay = retry_delay
+        self.failed_dir = failed_dir or default_failed_dir()
         self.base_url: str = session.config.constants.BASE_URL.rstrip("/")
         self.locale: SubscriptionLocale = get_locale(self.base_url)
+        #: The errors of all pages that could not be loaded or read, empty if the result is complete.
+        self.errors: list[ParseError] = []
         self._pages: _Pages | None = None
+        #: The captcha of a delivery or product page, after which no further such pages are requested.
+        self._captcha: CaptchaError | None = None
 
     def get_subscriptions(self) -> list[Subscription]:
         """All subscriptions, with their next delivery and its price if Amazon shows it."""
@@ -129,8 +161,13 @@ class SubscriptionsClient:
         landing_url = self._absolute(LANDING_PATH)
         landing = self._soup(self._get(landing_url))
         subscriptions = self._load_subscriptions(landing, landing_url)
-        deliveries = [self._load_delivery(card) for card in self._load_delivery_cards(landing, landing_url)]
+        deliveries = self._load_deliveries(self._load_delivery_cards(landing, landing_url))
         match_deliveries(subscriptions, deliveries)
+        for delivery in deliveries:
+            # The next delivery of these subscriptions, and so their price, may be incomplete.
+            for subscription in subscriptions:
+                if delivery.parse_errors and subscription.next_delivery_date == delivery.date:
+                    subscription.parse_errors += delivery.parse_errors
         self._load_substitutes(subscriptions, deliveries)
         if self.with_prices:
             self._load_prices(subscriptions)
@@ -160,12 +197,38 @@ class SubscriptionsClient:
             cards += parse_delivery_cards(fragment, self.locale, page, fragment=True)
         return cards
 
-    def _load_delivery(self, card: UpcomingDelivery) -> UpcomingDelivery:
-        """The delivery page of a card, with the card's link and bundle."""
-        if not card.url:
-            raise PageStructureError(f"Delivery card of {card.date} without link", LANDING_PATH)
-        url = self._absolute(card.url)
-        delivery = parse_delivery_page(self._soup(self._get(url)), self.locale, url)
+    def _load_deliveries(self, cards: list[UpcomingDelivery]) -> list[UpcomingDelivery]:
+        """The delivery pages of the cards. A captcha stops loading them, as every further request would get one too;
+        the remaining deliveries are then the cards."""
+        deliveries = []
+        for card in cards:
+            if not card.url:
+                raise PageStructureError(f"Delivery card of {card.date} without link", LANDING_PATH)
+            url = self._absolute(card.url)
+            try:
+                delivery, errors = self._load_page(
+                    url, f"delivery-{card.date}", lambda soup, page: parse_delivery_page(soup, self.locale, page)
+                )
+            except CaptchaError as e:
+                delivery, errors = None, [self._error(ParseError(url=url, message=str(e)))]
+            deliveries.append(self._merge_delivery(card, delivery, url, errors))
+        return deliveries
+
+    def _merge_delivery(
+        self, card: UpcomingDelivery, delivery: UpcomingDelivery | None, url: str, errors: list[ParseError]
+    ) -> UpcomingDelivery:
+        """The delivery of a delivery page with the card's link and bundle, or the card if its page failed."""
+        if delivery is None:
+            return UpcomingDelivery(
+                date=card.date,
+                change_deadline=card.change_deadline,
+                discount_tier=DiscountTier(item_count=card.discount_tier.item_count),
+                currency=card.currency,
+                delivery_bundle_id=card.delivery_bundle_id,
+                url=url,
+                parse_errors=errors,
+            )
+        delivery.parse_errors = errors
         if delivery.date != card.date:
             logger.warning(f"The delivery card shows {card.date}, but its page shows {delivery.date}.")
         if delivery.discount_tier.item_count is None:
@@ -205,33 +268,36 @@ class SubscriptionsClient:
             query["subAsin"] = subscription.asin
         url = self._absolute(f"{DETAIL_PATH}?{urlencode(query)}")
         try:
-            html = self._get(url)
-        except (SessionExpiredError, CaptchaError):
+            self._raise_on_captcha()
+            return parse_subscription_detail(self._soup(self._get(url)), url)
+        except SessionExpiredError:
             raise
         except SubscriptionsError as e:
+            if isinstance(e, CaptchaError):
+                self._captcha = e
             logger.warning(f"The detail sheet of subscription {subscription.subscription_id} was not loaded: {e}")
             return None
-        return parse_subscription_detail(self._soup(html), url)
 
     def _load_prices(self, subscriptions: list[Subscription]) -> None:
         """Set the prices of the product pages of the subscriptions.
 
-        A product page that fails leaves the prices of its subscription ``None``. A captcha stops loading them, as
-        every further request would get one too.
+        A product page that fails leaves the prices of its subscription ``None`` and adds the error to its
+        ``parse_errors``. A captcha stops loading them, as every further request would get one too.
         """
         for subscription in subscriptions:
             if not subscription.asin:
                 continue
             url = self._absolute(f"/dp/{subscription.asin}")
             try:
-                prices = parse_product_page(self._soup(self._get(url)), self.locale, url)
+                prices, errors = self._load_page(
+                    url, f"product-{subscription.asin}", lambda soup, page: parse_product_page(soup, self.locale, page)
+                )
             except CaptchaError as e:
-                logger.warning(f"Stopped loading the product pages for their prices: {e}")
+                subscription.parse_errors.append(self._error(ParseError(url=url, message=str(e))))
+                logger.debug(f"Stopped loading the product pages for their prices: {e}")
                 return
-            except SessionExpiredError:
-                raise
-            except SubscriptionsError as e:
-                logger.warning(f"The product page of {subscription.asin} was not loaded: {e}")
+            subscription.parse_errors += errors
+            if prices is None:
                 continue
             subscription.price = prices.price
             subscription.list_price = prices.list_price
@@ -286,6 +352,72 @@ class SubscriptionsClient:
         html = self._text(response, url)
         page = self._write_debug_file(f"paginate-{name}", html) or url
         return html, page
+
+    def _load_page(
+        self, url: str, name: str, parse: Callable[[BeautifulSoup, str], T]
+    ) -> tuple[T | None, list[ParseError]]:
+        """Load and parse a page, and a second time after :attr:`retry_delay` if that fails.
+
+        An attempt fails if the page cannot be loaded, the parser raises, or the result has ``parse_errors`` (e.g. a
+        date taken from the URL). Every received page of a failed attempt is saved to :attr:`failed_dir`.
+
+        :returns: The result of the first successful attempt and no errors. If both fail, the result of the second
+            attempt (``None`` if it raised) and its errors, which are also added to :attr:`errors`.
+        :raises SessionExpiredError: If the session has expired.
+        :raises CaptchaError: If Amazon answers with a captcha, now or before. It is not retried.
+        """
+        result: T | None = None
+        errors: list[ParseError] = []
+        for attempt in (1, 2):
+            if attempt == 2:
+                logger.info(f"Loading {url} again in {self.retry_delay} s: {errors[0].message}")
+                time.sleep(self.retry_delay)
+            self._raise_on_captcha()
+            html = None
+            try:
+                html = self._get(url)
+                result = parse(self._soup(html), url)
+                errors = list(getattr(result, "parse_errors", None) or [])
+            except CaptchaError as e:
+                self._captcha = e
+                raise
+            except SessionExpiredError:
+                raise
+            except (SubscriptionsError, RequestException) as e:
+                result = None
+                message = e.message if isinstance(e, PageStructureError) else str(e)
+                errors = [ParseError(url=url, message=message, selector=getattr(e, "selector", None))]
+            if not errors:
+                return result, []
+            html_path = self._write_failed_file(f"{name}_{attempt}", html) if html is not None else None
+            errors = [dataclasses.replace(error, html_path=html_path) for error in errors]
+        for error in errors:
+            self._error(error)
+        return result, errors
+
+    def _raise_on_captcha(self) -> None:
+        if self._captcha is not None:
+            raise self._captcha
+
+    def _error(self, error: ParseError) -> ParseError:
+        """Add an error to :attr:`errors`."""
+        logger.debug(f"Error: {error}")
+        self.errors.append(error)
+        return error
+
+    def _write_failed_file(self, name: str, text: str) -> str | None:
+        """Save a page that could not be read, also without ``debug``, so its structure can be analyzed."""
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        path = os.path.join(self.failed_dir, f"{timestamp}_{name}.html")
+        try:
+            os.makedirs(self.failed_dir, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+        except OSError as e:
+            logger.warning(f"The page that could not be read was not saved to {path}: {e}")
+            return None
+        logger.debug(f"Page that could not be read written to file: {path}")
+        return path
 
     def _get(self, url: str) -> str:
         self._check_read_only(url)

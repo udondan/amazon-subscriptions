@@ -55,21 +55,64 @@ Options (before the command):
 
 ### Errors
 
-The command exits with status 1 and a message if
+| Exit status | Meaning |
+| --- | --- |
+| 0 | Complete result. |
+| 1 | No result, only a message. |
+| 2 | Partial result: some delivery or product pages could not be read. The output is complete JSON (or text), the affected entries have `parse_errors` (text output: `[incomplete]`), and each error is printed to stderr. |
+
+The command exits with status 1 if
 
 - there is no session or it has expired. Run `amazon-subscriptions logout` and `amazon-subscriptions login` (with the
   same `--domain`, if any),
-- Amazon answers with a captcha. Open Amazon in a browser, solve it there and try again later,
-- a page does not have the expected structure, most likely because Amazon changed it. The message names the page;
-  run again with `--debug` to keep it. An empty result is only returned if Amazon says so.
+- the overview (`/auto-deliveries` and its further pages) cannot be loaded, e.g. because Amazon answers with a
+  captcha (open Amazon in a browser, solve it there and try again later) or has changed the page. The message names
+  the page; run again with `--debug` to keep it. An empty result is only returned if Amazon says so.
 
-The pages written with `--debug` contain your subscriptions, addresses and more. Keep them private.
+A delivery or product page that cannot be loaded or read is loaded once more after 2 seconds, as Amazon sometimes
+serves another variant of a page. If it fails again, the result is partial (status 2):
+
+- A delivery without date is dated by the `deliveryDate` of its URL, and keeps its items.
+- A delivery page without items gives the delivery as its card on the overview shows it: date, change deadline and
+  number of items, but `items` is empty and `total` is `null`. The subscriptions of that delivery get its error too,
+  as their `discount_percent` and `subscription_price` may be missing.
+- A product page leaves the prices of its subscription `null`.
+- A captcha is not retried. It stops loading the remaining delivery and product pages, which then fail too.
+
+Every received page that could not be read is saved to `~/.cache/amazon-subscriptions/failed/` (or
+`$XDG_CACHE_HOME/amazon-subscriptions/failed/`), also without `--debug`, as `<timestamp>_<page>_<attempt>.html`. The
+path is printed to stderr and is in `html_path` of the error:
+
+```text
+Error: No delivery date found, it was taken from the URL (page: https://www.amazon.de/auto-deliveries/?…), page saved to ~/.cache/amazon-subscriptions/failed/20260924-220012_delivery-2026-10-01_2.html
+```
+
+The pages written with `--debug` and to the failed pages directory contain your subscriptions, addresses and more.
+Keep them private.
 
 ## JSON
 
 - Dates are ISO 8601 (`2026-10-01`).
 - Amounts are decimal strings (`"12.34"`), in the currency of the ISO 4217 code in `currency`.
 - Values Amazon does not show are `null`.
+- Every subscription and delivery has `parse_errors`, the pages of it that could not be read (see
+  [Errors](#errors)). It is empty (`[]`) if the entry is complete:
+
+```json
+{
+  "url": "https://www.amazon.de/auto-deliveries/?…&deliveryDate=1790805600000&…",
+  "message": "No delivery date found, it was taken from the URL",
+  "selector": "[data-testid='ddp-atd-delivery-date']",
+  "html_path": "/Users/…/.cache/amazon-subscriptions/failed/20260924-220012_delivery-2026-10-01_2.html"
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `url` | The page that could not be read. |
+| `message` | What went wrong, e.g. a missing element, an HTTP status or a captcha. |
+| `selector` | CSS selector of the missing element, `null` if the page was not read at all. |
+| `html_path` | Where the page was saved, `null` if no page was received (e.g. an HTTP error). |
 
 ### `list --json`
 
@@ -97,7 +140,8 @@ A list of subscriptions:
     "unit_price_unit": null,
     "alternative_offer": null,
     "currency": "EUR",
-    "raw_status_text": null
+    "raw_status_text": null,
+    "parse_errors": []
   }
 ]
 ```
@@ -113,6 +157,7 @@ A list of subscriptions:
 | `unit_price`, `unit_price_unit` | Price per unit of measure of `price` and its unit as Amazon shows it, e.g. `"24.99"` and `"l"`, `"kg"` or `"Stück"`. Only read with `--with-prices`. |
 | `alternative_offer` | The cheapest offer of another seller for the same product („Alternative Angebote“), or `null`: `{"price": "5.45", "unit_price": "1.36", "unit_price_unit": "Stück", "seller": "…", "seller_id": "A1B2C3D4E5F6G7", "subscribable": false}`. `seller` is the seller name as the offer shows it, `Amazon` if Amazon sells it, or `null` if the page does not show a name. `seller_id` is the merchant ID from the link to the seller profile, `null` if Amazon sells the offer or the page has no such link. These offers cannot be subscribed to, so `subscribable` is always `false`. Only read with `--with-prices`. |
 | `raw_status_text` | The status or alert text shown by Amazon, e.g. for a backup product. |
+| `parse_errors` | The errors of the product page (`--with-prices`) and of the page of the next delivery, if they could not be read. |
 
 ### `upcoming --json`
 
@@ -141,7 +186,8 @@ A list of deliveries:
     "total": "150.19",
     "currency": "EUR",
     "delivery_bundle_id": "…",
-    "url": "https://www.amazon.de/auto-deliveries/?…"
+    "url": "https://www.amazon.de/auto-deliveries/?…",
+    "parse_errors": []
   }
 ]
 ```
@@ -154,6 +200,7 @@ A list of deliveries:
 | `items[].asin`, `items[].substitute_asin` | `asin` is always the subscribed product. If `substitute` is `true`, `title`, `price` and `discount_percent` are those of the backup product, and `substitute_asin` is its ASIN. It is read from the subscription's detail sheet and is `null` if that sheet names another backup product. |
 | `items[].subscription_id` | The subscription of the item. Delivery pages do not link items to subscriptions, so they are matched by title, quantity and interval; `null` if there is no unique match. |
 | `total` | Sum of the item prices, `null` if an item has no price. |
+| `parse_errors` | The errors of the delivery page, if it could not be read. `items` is then empty if the page had no items. |
 
 ## Library
 
@@ -168,7 +215,12 @@ session = AmazonSession(config=AmazonOrdersConfig())  # logged in with `amazon-s
 client = SubscriptionsClient(session)  # with_prices=True also loads the product pages
 print(to_json(client.get_subscriptions()))
 print(to_json(client.get_upcoming_deliveries()))
+if client.errors:  # the result is partial, see parse_errors
+    print(to_json(client.errors))
 ```
+
+`SubscriptionsClient` also takes `retry_delay` (seconds before loading a failed page again, default 2) and
+`failed_dir` (where failed pages are saved, default `~/.cache/amazon-subscriptions/failed`).
 
 The parsers in `amazon_subscriptions.parse` are pure functions of the page HTML and send no requests.
 

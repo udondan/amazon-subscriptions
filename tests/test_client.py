@@ -20,13 +20,16 @@ from amazon_subscriptions.parse import parse_acp_widget, selectors
 from tests.conftest import (
     DE_BASE_URL,
     DE_DELIVERIES_PAGINATE_URL,
+    DE_DELIVERY_1_URL,
     DE_DETAIL_URL,
     DE_LANDING_URL,
     DE_PRODUCT_URL,
     DE_SUBSCRIPTIONS_PAGINATE_URL,
     DE_TODAY,
+    delivery_1_without_date,
     make_session,
     read_fixture,
+    register_broken_delivery_1,
     register_de_pages,
     register_de_product_pages,
     without_deliveries_next_page,
@@ -109,31 +112,135 @@ def test_with_prices(tmp_path: Path, mock: responses.RequestsMock) -> None:
     )
 
 
-def test_with_prices_captcha_stops_loading_product_pages(
-    tmp_path: Path, mock: responses.RequestsMock, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_with_prices_captcha_stops_loading_product_pages(tmp_path: Path, mock: responses.RequestsMock) -> None:
     register_de_pages(mock)
     mock.get(DE_PRODUCT_URL, body='<html><body><form action="/errors/validateCaptcha"></form></body></html>')
-    subscriptions = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, with_prices=True).get_subscriptions()
+    client = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, with_prices=True)
+    subscriptions = client.get_subscriptions()
 
     assert len(subscriptions) == 32
     assert all(s.price is None for s in subscriptions)
+    # A captcha is not retried
     assert len([c for c in mock.calls if DE_PRODUCT_URL.fullmatch(c.request.url or "")]) == 1
-    assert "Stopped loading the product pages" in caplog.text
+    [error] = client.errors
+    assert "captcha" in error.message
+    assert [s.parse_errors for s in subscriptions if s.parse_errors] == [[error]]
 
 
-def test_with_prices_product_page_error(
-    tmp_path: Path, mock: responses.RequestsMock, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_with_prices_product_page_error(tmp_path: Path, mock: responses.RequestsMock) -> None:
     register_de_pages(mock)
     mock.get(f"{DE_BASE_URL}/dp/B0TEST0024", status=404)
+    mock.get(f"{DE_BASE_URL}/dp/B0TEST0024", status=404)
     register_de_product_pages(mock)
-    subscriptions = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, with_prices=True).get_subscriptions()
+    client = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, with_prices=True)
+    subscriptions = client.get_subscriptions()
 
     by_asin = {s.asin: s for s in subscriptions}
     assert by_asin["B0TEST0024"].price is None
     assert by_asin["B0TEST0026"].price == Decimal("26.49")
-    assert "The product page of B0TEST0024 was not loaded" in caplog.text
+    [error] = by_asin["B0TEST0024"].parse_errors
+    assert error.url == f"{DE_BASE_URL}/dp/B0TEST0024"
+    assert "404" in error.message
+    assert error.html_path is None
+    assert client.errors == [error]
+    assert all(not s.parse_errors for s in subscriptions if s.asin != "B0TEST0024")
+
+
+def test_with_prices_product_page_error_once(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    register_de_pages(mock)
+    mock.get(f"{DE_BASE_URL}/dp/B0TEST0024", status=503)
+    register_de_product_pages(mock)
+    client = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, with_prices=True)
+    subscriptions = client.get_subscriptions()
+
+    assert {s.asin: s for s in subscriptions}["B0TEST0024"].price == Decimal("17.49")
+    assert client.errors == []
+    assert len([c for c in mock.calls if c.request.url == f"{DE_BASE_URL}/dp/B0TEST0024"]) == 2
+
+
+def test_delivery_page_without_date(tmp_path: Path, mock: responses.RequestsMock, failed_dir: Path) -> None:
+    register_broken_delivery_1(mock)
+    register_de_pages(mock)
+    client = make_client(tmp_path)
+    deliveries = client.get_upcoming_deliveries()
+    subscriptions = client.get_subscriptions()
+
+    # The delivery is complete, with the date of its URL
+    assert [(d.date, len(d.items), d.total) for d in deliveries] == [
+        (date(2026, 10, 1), 11, Decimal("150.19")),
+        (date(2026, 11, 1), 16, None),
+    ]
+    assert all(item.subscription_id for d in deliveries for item in d.items)
+    # Loaded once more, not more often
+    assert len([c for c in mock.calls if DE_DELIVERY_1_URL.fullmatch(c.request.url or "")]) == 2
+
+    [error] = deliveries[0].parse_errors
+    assert error.url == deliveries[0].url
+    assert error.selector == selectors.DELIVERY_DATE
+    assert "taken from the URL" in error.message
+    assert deliveries[1].parse_errors == []
+    assert client.errors == [error]
+    # The subscriptions of the delivery have the error too
+    assert all(s.parse_errors == [error] for s in subscriptions if s.next_delivery_date == date(2026, 10, 1))
+    assert all(not s.parse_errors for s in subscriptions if s.next_delivery_date != date(2026, 10, 1))
+
+    # Both attempts are saved, the error names the last one
+    saved = sorted(failed_dir.iterdir())
+    assert [p.name.split("_", 1)[1] for p in saved] == ["delivery-2026-10-01_1.html", "delivery-2026-10-01_2.html"]
+    assert error.html_path == str(saved[1])
+    assert saved[1].read_text(encoding="utf-8") == delivery_1_without_date()
+
+
+def test_delivery_page_without_date_once(tmp_path: Path, mock: responses.RequestsMock, failed_dir: Path) -> None:
+    register_broken_delivery_1(mock, times=1)
+    register_de_pages(mock)
+    client = make_client(tmp_path)
+    deliveries = client.get_upcoming_deliveries()
+
+    assert client.errors == []
+    assert all(not d.parse_errors for d in deliveries)
+    assert len([c for c in mock.calls if DE_DELIVERY_1_URL.fullmatch(c.request.url or "")]) == 2
+    assert [p.name.split("_", 1)[1] for p in failed_dir.iterdir()] == ["delivery-2026-10-01_1.html"]
+
+
+def test_delivery_page_error_falls_back_to_the_card(
+    tmp_path: Path, mock: responses.RequestsMock, failed_dir: Path
+) -> None:
+    mock.get(DE_DELIVERY_1_URL, status=500, body="")
+    mock.get(DE_DELIVERY_1_URL, body="<html><body>Etwas Neues</body></html>")
+    register_de_pages(mock)
+    client = make_client(tmp_path)
+    deliveries = client.get_upcoming_deliveries()
+
+    first = deliveries[0]
+    assert (first.date, first.change_deadline, first.items, first.total) == (
+        date(2026, 10, 1),
+        date(2026, 9, 26),
+        [],
+        None,
+    )
+    assert first.discount_tier.item_count == 11
+    assert first.delivery_bundle_id and first.url and DE_DELIVERY_1_URL.fullmatch(first.url)
+    [error] = first.parse_errors
+    assert error.selector == selectors.DELIVERY_ITEM
+    assert error.message == f"No delivery items found ({selectors.DELIVERY_ITEM!r})"
+    # Only the second attempt received a page
+    assert error.html_path and error.html_path.endswith("_delivery-2026-10-01_2.html")
+    assert len(list(failed_dir.iterdir())) == 1
+    assert len(deliveries[1].items) == 16
+
+
+def test_delivery_page_captcha(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    mock.get(DE_DELIVERY_1_URL, body='<form action="/errors/validateCaptcha"></form>')
+    register_de_pages(mock)
+    client = make_client(tmp_path)
+    deliveries = client.get_upcoming_deliveries()
+
+    # The captcha is not retried, and no further delivery page or detail sheet is requested
+    assert [urlparse(c.request.url).path for c in mock.calls[2:]] == ["/auto-deliveries/"]
+    assert [(d.date, d.items) for d in deliveries] == [(date(2026, 10, 1), []), (date(2026, 11, 1), [])]
+    assert len(client.errors) == 2
+    assert all("captcha" in e.message for e in client.errors)
 
 
 def test_substitute_asin(tmp_path: Path, mock: responses.RequestsMock) -> None:
@@ -183,9 +290,16 @@ def test_substitute_detail_sheet_error(
 def test_substitute_detail_sheet_captcha(tmp_path: Path, mock: responses.RequestsMock) -> None:
     mock.get(DE_DETAIL_URL, body='<form action="/errors/validateCaptcha"></form>')
     register_de_pages(mock)
+    register_de_product_pages(mock)
+    client = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, with_prices=True)
+    deliveries = client.get_upcoming_deliveries()
 
-    with pytest.raises(CaptchaError):
-        make_client(tmp_path).get_upcoming_deliveries()
+    assert all(item.substitute_asin is None for d in deliveries for item in d.items)
+    # No product page is requested after the captcha
+    assert not [c for c in mock.calls if DE_PRODUCT_URL.fullmatch(c.request.url or "")]
+    # The prices are incomplete, noted on the first subscription whose product page was not requested
+    [error] = client.errors
+    assert "captcha" in error.message and DE_PRODUCT_URL.fullmatch(error.url or "")
 
 
 def test_next_page_is_requested_like_the_browser(tmp_path: Path, mock: responses.RequestsMock) -> None:

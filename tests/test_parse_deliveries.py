@@ -5,9 +5,9 @@ import pytest
 
 from amazon_subscriptions.exceptions import PageStructureError
 from amazon_subscriptions.locales.base import SubscriptionLocale
-from amazon_subscriptions.models import Interval, IntervalUnit, UpcomingDelivery
+from amazon_subscriptions.models import Interval, IntervalUnit, ParseError, UpcomingDelivery
 from amazon_subscriptions.parse import parse_deliveries_next_url, parse_delivery_cards, parse_delivery_page
-from tests.conftest import read_fixture
+from tests.conftest import DE_DELIVERY_1_EPOCH, DE_LANDING_URL, delivery_1_without_date, read_fixture
 
 
 @pytest.fixture(scope="module")
@@ -90,6 +90,33 @@ def test_delivery_2_without_prices(delivery_2: UpcomingDelivery) -> None:
     assert all(item.discount_percent in (5, 15) for item in delivery_2.items)
     assert all(item.quantity and item.interval for item in delivery_2.items)
     assert not any(item.substitute for item in delivery_2.items)
+
+
+def test_delivery_page_without_date_takes_it_from_the_url(de: SubscriptionLocale) -> None:
+    url = f"{DE_LANDING_URL}/?shipId=x&deliveryDate={DE_DELIVERY_1_EPOCH}&deliveryBundleId=y"
+    delivery = parse_delivery_page(delivery_1_without_date(), de, url)
+
+    # Midnight in Europe/Berlin, which is still 30 September in UTC
+    assert delivery.date == date(2026, 10, 1)
+    assert len(delivery.items) == 11
+    assert delivery.total == Decimal("150.19")
+    assert delivery.parse_errors == [
+        ParseError(
+            url=url,
+            message="No delivery date found, it was taken from the URL",
+            selector="[data-testid='ddp-atd-delivery-date']",
+        )
+    ]
+
+
+def test_delivery_page_without_date_and_url(de: SubscriptionLocale) -> None:
+    with pytest.raises(PageStructureError, match="No delivery date found") as e:
+        parse_delivery_page(delivery_1_without_date(), de, f"{DE_LANDING_URL}/?shipId=x")
+    assert e.value.selector == "[data-testid='ddp-atd-delivery-date']"
+
+
+def test_delivery_page_with_date_has_no_errors(delivery_1: UpcomingDelivery) -> None:
+    assert delivery_1.parse_errors == []
 
 
 def test_delivery_page_unknown(de: SubscriptionLocale) -> None:

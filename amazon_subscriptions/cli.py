@@ -72,8 +72,23 @@ cli.add_command(logout)
 cli.add_command(check_session)
 
 
+#: Exit status if some pages could not be read, so the result is incomplete.
+EXIT_PARTIAL = 2
+
+
 def _client(ctx: click.Context, with_prices: bool = False) -> SubscriptionsClient:
     return SubscriptionsClient(ctx.obj["amazon_session"], with_prices=with_prices)
+
+
+def _exit_on_errors(ctx: click.Context, client: SubscriptionsClient) -> None:
+    """Print the errors of the pages that could not be read and exit with :data:`EXIT_PARTIAL` if there are any."""
+    if not client.errors:
+        return
+    for error in client.errors:
+        saved = f", page saved to {error.html_path}" if error.html_path else ""
+        click.echo(f"Error: {error.message} (page: {error.url}){saved}", err=True)
+    click.echo("The result is incomplete, see parse_errors.", err=True)
+    ctx.exit(EXIT_PARTIAL)
 
 
 @cli.command("list")
@@ -87,13 +102,15 @@ def _client(ctx: click.Context, with_prices: bool = False) -> SubscriptionsClien
 @click.pass_context
 def list_subscriptions(ctx: click.Context, as_json: bool, with_prices: bool) -> None:
     """List all subscriptions."""
-    subscriptions = _client(ctx, with_prices).get_subscriptions()
+    client = _client(ctx, with_prices)
+    subscriptions = client.get_subscriptions()
     if as_json:
         click.echo(to_json(subscriptions))
-        return
-    for subscription in sorted(subscriptions, key=_next_delivery_key):
-        click.echo(_format_subscription(subscription))
-    click.echo(f"\n{len(subscriptions)} subscriptions")
+    else:
+        for subscription in sorted(subscriptions, key=_next_delivery_key):
+            click.echo(_format_subscription(subscription))
+        click.echo(f"\n{len(subscriptions)} subscriptions")
+    _exit_on_errors(ctx, client)
 
 
 @cli.command()
@@ -101,14 +118,16 @@ def list_subscriptions(ctx: click.Context, as_json: bool, with_prices: bool) -> 
 @click.pass_context
 def upcoming(ctx: click.Context, as_json: bool) -> None:
     """List the upcoming deliveries with their items."""
-    deliveries = _client(ctx).get_upcoming_deliveries()
+    client = _client(ctx)
+    deliveries = client.get_upcoming_deliveries()
     if as_json:
         click.echo(to_json(deliveries))
-        return
-    for index, delivery in enumerate(deliveries):
-        if index:
-            click.echo()
-        click.echo(_format_delivery(delivery))
+    else:
+        for index, delivery in enumerate(deliveries):
+            if index:
+                click.echo()
+            click.echo(_format_delivery(delivery))
+    _exit_on_errors(ctx, client)
 
 
 def _next_delivery_key(subscription: Subscription) -> tuple[bool, str, str]:
@@ -140,12 +159,15 @@ def _format_subscription(s: Subscription) -> str:
             alternative = f", alternative offer {_format_amount(s.alternative_offer.price, s.currency)}{seller}"
         price += f"  (regular {_format_amount(s.price, s.currency)}{unit}{list_price}{alternative})"
     status = f"  [{s.status.value}]" if s.status.value not in ("active", "unknown") else ""
+    status += "  [incomplete]" if s.parse_errors else ""
     return f"{date}  {s.quantity or '?'} x {s.title or s.asin}  ({_format_interval(s.interval)}){price}{status}"
 
 
 def _format_delivery(d: UpcomingDelivery) -> str:
     deadline = f", changes until {d.change_deadline.isoformat()}" if d.change_deadline else ""
-    lines = [f"{d.date.isoformat()}: {len(d.items)} items, total {_format_amount(d.total, d.currency)}{deadline}"]
+    incomplete = "  [incomplete]" if d.parse_errors else ""
+    total = _format_amount(d.total, d.currency)
+    lines = [f"{d.date.isoformat()}: {len(d.items)} items, total {total}{deadline}{incomplete}"]
     for item in d.items:
         discount = f" (-{item.discount_percent}%)" if item.discount_percent is not None else ""
         substitute = ""

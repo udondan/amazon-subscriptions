@@ -43,6 +43,19 @@ class ListPriceSource(str, Enum):
 
 
 @dataclass(frozen=True)
+class ParseError:
+    """A page that could not be loaded or read completely, so the object it belongs to is incomplete."""
+
+    #: URL of the page.
+    url: str | None
+    message: str
+    #: CSS selector of the element that was not found, if known.
+    selector: str | None = None
+    #: Path of the file the page was saved to for diagnosis, ``None`` if no page was received.
+    html_path: str | None = None
+
+
+@dataclass(frozen=True)
 class Interval:
     every: int
     unit: IntervalUnit
@@ -97,6 +110,8 @@ class Subscription:
     currency: str | None = None
     #: Status text shown by Amazon, if any.
     raw_status_text: str | None = None
+    #: Pages of this subscription that could not be read, so some of its fields may be ``None``.
+    parse_errors: list[ParseError] = field(default_factory=list)
 
 
 @dataclass
@@ -143,3 +158,5 @@ class UpcomingDelivery:
     delivery_bundle_id: str | None = None
     #: URL of the delivery page.
     url: str | None = None
+    #: Pages of this delivery that could not be read, so some of its fields may be ``None`` and items missing.
+    parse_errors: list[ParseError] = field(default_factory=list)
