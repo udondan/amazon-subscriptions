@@ -7,9 +7,19 @@ so far: amazon.de.
 
 ## Installation
 
+Requires Python 3.10 or later. With [uv](https://docs.astral.sh/uv/):
+
 ```sh
 uv tool install git+https://github.com/udondan/amazon-subscriptions
 ```
+
+Or from a checkout, prefixing the commands below with `uv run`:
+
+```sh
+uv sync
+```
+
+The installation includes amazon-orders; its CLI is not needed.
 
 ## Usage
 
@@ -24,7 +34,11 @@ amazon-subscriptions logout
 ```
 
 `login`, `logout` and `check-session` are the commands of amazon-orders. The session is stored in
-`~/.config/amazonorders/cookies.json` and shared with amazon-orders.
+`~/.config/amazonorders/cookies.json` and shared with amazon-orders. Credentials are only asked for by `login` and
+never stored; the other commands never log in by themselves.
+
+Both `list` and `upcoming` load the same pages, about 3 requests plus one per upcoming delivery: `list` needs the
+delivery pages for the prices of the next delivery.
 
 Options (before the command):
 
@@ -43,6 +57,8 @@ The command exits with status 1 and a message if
 - Amazon answers with a captcha. Open Amazon in a browser, solve it there and try again later,
 - a page does not have the expected structure, most likely because Amazon changed it. The message names the page;
   run again with `--debug` to keep it. An empty result is only returned if Amazon says so.
+
+The pages written with `--debug` contain your subscriptions, addresses and more. Keep them private.
 
 ## JSON
 
@@ -148,6 +164,39 @@ The client only requests the Subscribe & Save overview, the further pages of its
 when scrolling) and the page of each upcoming delivery. Every URL is checked against an allow-list before it is
 requested, so links that change subscriptions (skip, pause, cancel, change quantity or interval, deliver now) are
 never requested.
+
+## Limitations
+
+- Prices are only known for deliveries that show them, which is usually only the next one. `subscription_price` and
+  `discount_percent` of a subscription are therefore only set if its next delivery is that one.
+- Regular, list and unit prices are not shown on the pages that are read.
+- The status texts of paused, skipped and unavailable subscriptions on the overview are not known yet, so they give
+  `unknown` and a warning. A subscription whose next delivery sends a backup product is `unavailable`.
+- Only the deliveries shown on the overview and its further pages are read, which Amazon limits to a few months.
+
+## Other storefronts
+
+A storefront needs a subclass of `SubscriptionLocale` in `amazon_subscriptions/locales/`, registered in
+`LOCALES_BY_TLD`, and anonymized fixtures of its pages in `tests/fixtures/<tld>/`. The texts are taken from real pages;
+none are guessed.
+
+For amazon.com this means:
+
+1. **Pages**: The overview (`/auto-deliveries`), one further page of each list (`--debug` writes them as
+   `paginate-*.html`) and the upcoming delivery pages, anonymized with `scripts/anonymize_fixtures.py`.
+2. **Month names**: `EnUS` of amazon-orders defines no `MONTHS` (it parses dates without a fixed format), so
+   `SubscriptionLocale` refuses it. amazon-orders would need English month names, as `DeDE` has.
+3. **Date order**: The date pattern of `SubscriptionLocale` expects day before month (`1. Okt.`). amazon.com writes
+   month before day (`Oct 1`), so the pattern has to become part of the locale.
+4. **Texts**: Everything in `DeSubscriptionLocale`: prefixes of next delivery, arrival and change deadline, quantity and
+   interval (`1 unit every 2 months`?), discount, item count, savings, maximum discount, backup product alerts, tile
+   links and status texts.
+5. **Amounts**: `USD`, `1,234.56` with `,` as thousands separator and `$` as noise.
+6. **Markup**: The selectors in `amazon_subscriptions/parse/selectors.py`, the widget paths and `page-type=RCXSubs` of
+   the further pages, and the URL allow-list in `amazon_subscriptions/client.py` are those of amazon.de. They are
+   probably shared by all storefronts, but must be checked against the fixtures.
+
+Login, session and cookies of amazon.com are already handled by amazon-orders.
 
 ## Development
 
