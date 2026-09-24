@@ -35,16 +35,25 @@ DELIVERY_ITEM_ALERT = "[data-testid='subscription-item-alert']"
 SUBSCRIPTION_DETAIL_BACKUP_LINK = "a[href*='/backupItem'][href*='ASIN=']"
 SUBSCRIPTION_DETAIL_BACKUP_TITLE = ".actionDetail"
 
-# Product page (/dp/<ASIN>). The offer row holds the one-time price, the price display above it the list price.
+# Product page (/dp/<ASIN>). Each offer (buybox, alternative offers) is a row of the buybox accordion with the price of
+# a one-time purchase. The center column has one price display per row, in the same order, with the list price.
 PRODUCT_TITLE = "#productTitle"
 PRODUCT_AVAILABILITY = "#availability"
 PRODUCT_OFFER = "#corePrice_feature_div"
+PRODUCT_OFFER_CAPTION = "#newAccordionCaption_feature_div"
+PRODUCT_OFFER_SELLER = "#sellerProfileTriggerId"
 PRODUCT_PRICE = ".apex-pricetopay-value .a-offscreen"
 PRODUCT_UNIT_PRICE = ".apex-priceperunit-accessibility-label"
 PRODUCT_PRICE_DISPLAY = "#corePriceDisplay_desktop_feature_div"
+PRODUCT_DISPLAY_PRICE = ".apex-pricetopay-value [aria-hidden]"
 PRODUCT_BASIS_PRICE = ".basisPrice"
 PRODUCT_BASIS_PRICE_LABEL = ".apex-basisprice-label"
 PRODUCT_BASIS_PRICE_VALUE = ".apex-basisprice-value .a-offscreen"
+# Comparison widgets ("Kundinnen und Kunden kauften auch"), whose entry of the product itself is labeled
+PRODUCT_WIDGET = "[data-feature-name^='sims']"
+PRODUCT_WIDGET_LABEL = ".a-text-bold"
+PRODUCT_WIDGET_ENTRY = "a-cardui"
+PRODUCT_WIDGET_STRIKE_PRICE = ".a-text-strike"
 
 # Pages that are not the requested one
 CAPTCHA = ["form[action*='validateCaptcha']", "#captchacharacters", "img[src*='/captcha/']"]

@@ -4,7 +4,7 @@ from typing import ClassVar
 from amazonorders.localization import DeDE
 
 from amazon_subscriptions.locales.base import SubscriptionLocale
-from amazon_subscriptions.models import IntervalUnit, SubscriptionStatus
+from amazon_subscriptions.models import IntervalUnit, ListPriceType, SubscriptionStatus
 
 
 class DeSubscriptionLocale(SubscriptionLocale):
@@ -37,7 +37,13 @@ class DeSubscriptionLocale(SubscriptionLocale):
     SUBSTITUTE_ALERT_TEXTS: ClassVar[list[str]] = ["Backup-Produkt wird versendet"]
 
     UNIT_PRICE_RE = re.compile(r"(.+?) pro (.+)")
-    LIST_PRICE_LABELS: ClassVar[list[str]] = ["UVP"]
+    LIST_PRICE_TYPES: ClassVar[dict[str, ListPriceType]] = {
+        "UVP": ListPriceType.UVP,
+        "Niedrigster Preis in 30 Tagen": ListPriceType.LOWEST_30D,
+        "Statt": ListPriceType.WAS,
+    }
+    ALTERNATIVE_OFFERS_CAPTIONS: ClassVar[list[str]] = ["Alternative Angebote"]
+    THIS_ITEM_LABEL = "Dieser Artikel"
 
     AMOUNT_RE = re.compile(r"(-?(?:\d{1,3}(?:\.\d{3})+|\d+))(?:,(\d{1,2}))?")
     THOUSANDS_SEPARATOR = "."

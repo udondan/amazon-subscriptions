@@ -15,6 +15,7 @@ from amazon_subscriptions.exceptions import (
     SessionExpiredError,
     SubscriptionsError,
 )
+from amazon_subscriptions.models import AlternativeOffer, ListPriceSource, ListPriceType
 from amazon_subscriptions.parse import parse_acp_widget, selectors
 from tests.conftest import (
     DE_BASE_URL,
@@ -87,6 +88,11 @@ def test_with_prices(tmp_path: Path, mock: responses.RequestsMock) -> None:
     by_asin = {s.asin: s for s in subscriptions}
     with_list_price, unavailable, other = by_asin["B0TEST0024"], by_asin["B0TEST0025"], by_asin["B0TEST0026"]
     assert (with_list_price.price, with_list_price.list_price) == (Decimal("17.49"), Decimal("27.99"))
+    assert (with_list_price.list_price_type, with_list_price.list_price_source) == (
+        ListPriceType.UVP,
+        ListPriceSource.BUYBOX,
+    )
+    assert with_list_price.alternative_offer is None
     assert (with_list_price.unit_price, with_list_price.unit_price_unit) == (Decimal("24.99"), "l")
     assert (unavailable.price, unavailable.list_price, unavailable.unit_price) == (None, None, None)
     assert (other.price, other.list_price, other.unit_price, other.unit_price_unit) == (
@@ -94,6 +100,12 @@ def test_with_prices(tmp_path: Path, mock: responses.RequestsMock) -> None:
         None,
         Decimal("0.25"),
         "Stück",
+    )
+    alternative = by_asin["B0TEST0027"]
+    assert (alternative.price, alternative.list_price) == (Decimal("5.98"), Decimal("5.75"))
+    assert (alternative.list_price_type, alternative.list_price_source) == (ListPriceType.UVP, ListPriceSource.WIDGET)
+    assert alternative.alternative_offer == AlternativeOffer(
+        price=Decimal("5.45"), unit_price=Decimal("1.36"), unit_price_unit="Stück", seller="Testhändler 02"
     )
 
 

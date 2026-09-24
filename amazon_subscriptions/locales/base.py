@@ -10,7 +10,7 @@ from amazonorders.localization import Locale
 
 from amazon_subscriptions.dates import DateParts
 from amazon_subscriptions.exceptions import SubscriptionsError
-from amazon_subscriptions.models import Interval, IntervalUnit, SubscriptionStatus
+from amazon_subscriptions.models import Interval, IntervalUnit, ListPriceType, SubscriptionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +63,12 @@ class SubscriptionLocale:
 
     #: Unit price of a product page, e.g. "24,99 € pro l". Groups: amount, unit.
     UNIT_PRICE_RE: ClassVar[re.Pattern[str]]
-    #: Labels of the list price (RRP) of a product page, matched as prefix.
-    LIST_PRICE_LABELS: ClassVar[list[str]]
+    #: Labels of the list price of a product page by the type they state, matched as prefix.
+    LIST_PRICE_TYPES: ClassVar[dict[str, ListPriceType]]
+    #: Captions of the buybox rows with offers of other sellers.
+    ALTERNATIVE_OFFERS_CAPTIONS: ClassVar[list[str]]
+    #: Label of the entry of the product itself in a comparison widget, e.g. "Dieser Artikel:", matched as prefix.
+    THIS_ITEM_LABEL: ClassVar[str]
 
     #: Amount pattern, e.g. "1.234,56". Groups: integer part, decimals (optional).
     AMOUNT_RE: ClassVar[re.Pattern[str]]
@@ -152,9 +156,20 @@ class SubscriptionLocale:
         amount = self.parse_amount(match.group(1))
         return (amount, match.group(2)) if amount is not None else None
 
-    def is_list_price_label(self, text: str | None) -> bool:
+    def list_price_type_of(self, label: str | None) -> ListPriceType | None:
+        """The type of a list price by its label, ``None`` if the label is not one of a list price."""
+        label = normalize_space(label or "").lower()
+        for prefix, list_price_type in self.LIST_PRICE_TYPES.items():
+            if label.startswith(prefix.lower()):
+                return list_price_type
+        return None
+
+    def is_alternative_offers_caption(self, text: str | None) -> bool:
         text = normalize_space(text or "").lower()
-        return any(text.startswith(label.lower()) for label in self.LIST_PRICE_LABELS)
+        return any(text.startswith(caption.lower()) for caption in self.ALTERNATIVE_OFFERS_CAPTIONS)
+
+    def is_this_item_label(self, text: str | None) -> bool:
+        return normalize_space(text or "").lower().startswith(self.THIS_ITEM_LABEL.lower())
 
     def status_of(self, text: str) -> SubscriptionStatus:
         """The status of a subscription tile's status text."""

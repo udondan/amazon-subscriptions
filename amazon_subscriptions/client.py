@@ -235,8 +235,11 @@ class SubscriptionsClient:
                 continue
             subscription.price = prices.price
             subscription.list_price = prices.list_price
+            subscription.list_price_type = prices.list_price_type
+            subscription.list_price_source = prices.list_price_source
             subscription.unit_price = prices.unit_price
             subscription.unit_price_unit = prices.unit_price_unit
+            subscription.alternative_offer = prices.alternative_offer
 
     def _paginate(
         self, landing: BeautifulSoup, next_page_selector: str, next_url_of: Callable[[Html], str | None], name: str

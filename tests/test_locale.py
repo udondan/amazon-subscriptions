@@ -7,7 +7,7 @@ from amazon_subscriptions.exceptions import SubscriptionsError
 from amazon_subscriptions.locales import get_locale
 from amazon_subscriptions.locales.base import SubscriptionLocale
 from amazon_subscriptions.locales.de import DeSubscriptionLocale
-from amazon_subscriptions.models import Interval, IntervalUnit, SubscriptionStatus
+from amazon_subscriptions.models import Interval, IntervalUnit, ListPriceType, SubscriptionStatus
 
 
 @pytest.mark.parametrize("domain", ["amazon.de", "www.amazon.de", "https://www.amazon.de/auto-deliveries"])
@@ -117,7 +117,28 @@ def test_parse_unit_price_unknown_format(de: SubscriptionLocale, caplog: pytest.
     assert "not recognized" in caplog.text
 
 
-def test_is_list_price_label(de: SubscriptionLocale) -> None:
-    assert de.is_list_price_label("UVP:")
-    assert not de.is_list_price_label("Einmaliger Preis:")
-    assert not de.is_list_price_label(None)
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("UVP:", ListPriceType.UVP),
+        (" uvp: ", ListPriceType.UVP),
+        ("Niedrigster Preis in 30 Tagen:", ListPriceType.LOWEST_30D),
+        ("Statt:", ListPriceType.WAS),
+        ("Einmaliger Preis:", None),
+        (None, None),
+    ],
+)
+def test_list_price_type_of(de: SubscriptionLocale, label: str | None, expected: ListPriceType | None) -> None:
+    assert de.list_price_type_of(label) is expected
+
+
+def test_is_alternative_offers_caption(de: SubscriptionLocale) -> None:
+    assert de.is_alternative_offers_caption(" Alternative Angebote ")
+    assert not de.is_alternative_offers_caption("Einmaliger Kauf")
+    assert not de.is_alternative_offers_caption(None)
+
+
+def test_is_this_item_label(de: SubscriptionLocale) -> None:
+    assert de.is_this_item_label("Dieser Artikel:")
+    assert not de.is_this_item_label("Pritt Klebestift")
+    assert not de.is_this_item_label(None)

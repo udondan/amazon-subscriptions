@@ -19,10 +19,47 @@ class SubscriptionStatus(str, Enum):
     UNKNOWN = "unknown"
 
 
+class ListPriceType(str, Enum):
+    """What the list price of a product page is, by its label."""
+
+    #: Recommended retail price, "UVP" on amazon.de.
+    UVP = "uvp"
+    #: Lowest price of the last 30 days.
+    LOWEST_30D = "lowest_30d"
+    #: A former price, "Statt" on amazon.de.
+    WAS = "was"
+
+
+class ListPriceSource(str, Enum):
+    """The block of a product page the list price was read from."""
+
+    #: The price block of the offer in the buybox.
+    BUYBOX = "buybox"
+    #: The entry of the product itself ("Dieser Artikel") in a comparison widget. Only recommended retail prices are
+    #: read from there, as the widget may show another offer than the buybox.
+    WIDGET = "widget"
+    #: The price block of an alternative offer of the same product. Only recommended retail prices are read from there.
+    ALTERNATIVE_OFFER = "alternative_offer"
+
+
 @dataclass(frozen=True)
 class Interval:
     every: int
     unit: IntervalUnit
+
+
+@dataclass(frozen=True)
+class AlternativeOffer:
+    """An offer of the same product by another seller, listed next to the buybox offer."""
+
+    #: Price of a one-time purchase.
+    price: Decimal
+    unit_price: Decimal | None = None
+    unit_price_unit: str | None = None
+    #: Name of the seller, if the page shows it.
+    seller: str | None = None
+    #: Alternative offers cannot be subscribed to.
+    subscribable: bool = False
 
 
 @dataclass
@@ -38,8 +75,12 @@ class Subscription:
     status: SubscriptionStatus = SubscriptionStatus.UNKNOWN
     #: Regular (one-time purchase) price of one unit. Only read with ``with_prices``, from the product page.
     price: Decimal | None = None
-    #: List price (RRP) of one unit, if the product page shows one. Only read with ``with_prices``.
+    #: List price of one unit, if the product page shows one for this product. Only read with ``with_prices``.
     list_price: Decimal | None = None
+    #: What ``list_price`` is, by its label.
+    list_price_type: ListPriceType | None = None
+    #: The block of the product page ``list_price`` was read from.
+    list_price_source: ListPriceSource | None = None
     #: Subscribe & Save discount of the next delivery in percent.
     discount_percent: int | None = None
     #: Price of the next delivery of this subscription, for the whole quantity and with the discount applied.
@@ -48,6 +89,8 @@ class Subscription:
     unit_price: Decimal | None = None
     #: The unit of measure of ``unit_price`` as shown by Amazon, e.g. ``kg``, ``100 ml`` or ``Stück``.
     unit_price_unit: str | None = None
+    #: The cheapest other offer of the same product on the product page. Only read with ``with_prices``.
+    alternative_offer: AlternativeOffer | None = None
     #: ISO 4217 code of the amounts.
     currency: str | None = None
     #: Status text shown by Amazon, if any.
