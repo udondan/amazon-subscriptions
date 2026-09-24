@@ -106,13 +106,24 @@ def test_list_with_prices(mock: responses.RequestsMock) -> None:
     register_de_product_pages(mock)
     result = CliRunner().invoke(cli, ["--domain", "amazon.de", "list", "--with-prices"])
     assert result.exit_code == 0, result.output
-    assert "(regular 17.49 EUR, 24.99 EUR/l)" in result.output
+    assert "(regular 17.49 EUR, 24.99 EUR/l, uvp 27.99 EUR)" in result.output
+    assert "(regular 5.98 EUR, 1.50 EUR/Stück, uvp 5.75 EUR, alternative offer 5.45 EUR from Testhändler 02)" in (
+        result.output
+    )
 
     result = CliRunner().invoke(cli, ["--domain", "amazon.de", "list", "--json", "--with-prices"])
     assert result.exit_code == 0, result.output
     by_asin = {s["asin"]: s for s in json.loads(result.output)}
     assert (by_asin["B0TEST0024"]["price"], by_asin["B0TEST0024"]["list_price"]) == ("17.49", "27.99")
     assert (by_asin["B0TEST0024"]["unit_price"], by_asin["B0TEST0024"]["unit_price_unit"]) == ("24.99", "l")
+    assert (by_asin["B0TEST0024"]["list_price_type"], by_asin["B0TEST0024"]["list_price_source"]) == ("uvp", "buybox")
+    assert by_asin["B0TEST0027"]["alternative_offer"] == {
+        "price": "5.45",
+        "unit_price": "1.36",
+        "unit_price_unit": "Stück",
+        "seller": "Testhändler 02",
+        "subscribable": False,
+    }
 
 
 def test_upcoming(mock: responses.RequestsMock) -> None:

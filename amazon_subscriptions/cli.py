@@ -82,7 +82,7 @@ def _client(ctx: click.Context, with_prices: bool = False) -> SubscriptionsClien
     "--with-prices",
     is_flag=True,
     default=False,
-    help="Also load each product page for the regular price, list price and unit price (one request each).",
+    help="Also load each product page for the regular, list, unit and alternative offer prices (one request each).",
 )
 @click.pass_context
 def list_subscriptions(ctx: click.Context, as_json: bool, with_prices: bool) -> None:
@@ -131,7 +131,14 @@ def _format_subscription(s: Subscription) -> str:
     price = f"  {_format_amount(s.subscription_price, s.currency)}" if s.subscription_price is not None else ""
     if s.price is not None:
         unit = f", {_format_amount(s.unit_price, s.currency)}/{s.unit_price_unit}" if s.unit_price is not None else ""
-        price += f"  (regular {_format_amount(s.price, s.currency)}{unit})"
+        list_price = ""
+        if s.list_price is not None and s.list_price_type is not None:
+            list_price = f", {s.list_price_type.value} {_format_amount(s.list_price, s.currency)}"
+        alternative = ""
+        if s.alternative_offer is not None:
+            seller = f" from {s.alternative_offer.seller}" if s.alternative_offer.seller else ""
+            alternative = f", alternative offer {_format_amount(s.alternative_offer.price, s.currency)}{seller}"
+        price += f"  (regular {_format_amount(s.price, s.currency)}{unit}{list_price}{alternative})"
     status = f"  [{s.status.value}]" if s.status.value not in ("active", "unknown") else ""
     return f"{date}  {s.quantity or '?'} x {s.title or s.asin}  ({_format_interval(s.interval)}){price}{status}"
 

@@ -31,7 +31,7 @@ amazon-subscriptions login              # asks for username, password and one-ti
 amazon-subscriptions list               # all subscriptions
 amazon-subscriptions upcoming           # upcoming deliveries with their items
 amazon-subscriptions list --json
-amazon-subscriptions list --with-prices # also regular, list and unit prices from the product pages
+amazon-subscriptions list --with-prices # also regular, list, unit and alternative prices from the product pages
 amazon-subscriptions upcoming --json
 amazon-subscriptions check-session
 amazon-subscriptions logout
@@ -89,10 +89,13 @@ A list of subscriptions:
     "status": "active",
     "price": null,
     "list_price": null,
+    "list_price_type": null,
+    "list_price_source": null,
     "discount_percent": 15,
     "subscription_price": "12.34",
     "unit_price": null,
     "unit_price_unit": null,
+    "alternative_offer": null,
     "currency": "EUR",
     "raw_status_text": null
   }
@@ -104,8 +107,11 @@ A list of subscriptions:
 | `interval.unit` | `day`, `week` or `month`. |
 | `status` | `active`, `paused`, `unavailable` (a backup product is sent instead), `skipped` or `unknown`. |
 | `discount_percent`, `subscription_price` | Discount and price of the whole quantity in the next delivery. Only set if that delivery shows prices, usually only the next one. |
-| `price`, `list_price` | Regular (one-time purchase) price and list price (RRP) of one unit, from the product page. Only read with `--with-prices`, `null` if the product is not available or the page shows no list price. |
+| `price`, `list_price` | Regular (one-time purchase) price of one unit in the buybox of the product page, and the strike-through price shown for it. Only read with `--with-prices`, `null` if the product is not available or the page shows no list price. Prices of other variants, sponsored products and recommendations on the page are never used. |
+| `list_price_type` | What `list_price` is, by its label: `uvp` (recommended retail price, „UVP“), `lowest_30d` (lowest price in the last 30 days) or `was` (previous price, „Statt“). `null` without `list_price`. |
+| `list_price_source` | Where `list_price` was read: `buybox` (price block of the buybox, any type), `widget` (the entry of this product, „Dieser Artikel“, in a comparison widget such as „Kundinnen und Kunden kauften auch“, only `uvp`) or `alternative_offer` (price block of an alternative offer of the same product, only `uvp`). Tried in this order. |
 | `unit_price`, `unit_price_unit` | Price per unit of measure of `price` and its unit as Amazon shows it, e.g. `"24.99"` and `"l"`, `"kg"` or `"Stück"`. Only read with `--with-prices`. |
+| `alternative_offer` | The cheapest offer of another seller for the same product („Alternative Angebote“), or `null`: `{"price": "5.45", "unit_price": "1.36", "unit_price_unit": "Stück", "seller": "…", "subscribable": false}`. `seller` is `null` if the page does not show it. These offers cannot be subscribed to, so `subscribable` is always `false`. Only read with `--with-prices`. |
 | `raw_status_text` | The status or alert text shown by Amazon, e.g. for a backup product. |
 
 ### `upcoming --json`
@@ -225,4 +231,6 @@ creates the releases and the changelog from them.
 
 The test fixtures in `tests/fixtures` are anonymized pages of amazon.de, see `scripts/anonymize_fixtures.py`. The
 product page fixtures (`product*.html`) are reduced to their title and price blocks with
-`scripts/extract_product_fixture.py`.
+`scripts/extract_product_fixture.py`. It also keeps the variants, the comparison widget and a sponsored product, as
+prices the parser must not read; save the rendered page of a browser, since the prices of the variants are only added
+by JavaScript.

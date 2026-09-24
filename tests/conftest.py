@@ -28,7 +28,11 @@ DE_SUBSCRIPTIONS_PAGINATE_URL = re.compile(
 DE_DETAIL_URL = re.compile(re.escape(DE_BASE_URL) + r"/auto-deliveries/ajax/subscription/\?.*")
 DE_PRODUCT_URL = re.compile(re.escape(DE_BASE_URL) + r"/dp/[A-Z0-9]{10}")
 #: The product page fixtures by ASIN; all other ASINs get ``de/product.html``.
-DE_PRODUCT_PAGES = {"B0TEST0024": "product-list-price", "B0TEST0025": "product-unavailable"}
+DE_PRODUCT_PAGES = {
+    "B0TEST0024": "product-list-price",
+    "B0TEST0025": "product-unavailable",
+    "B0TEST0027": "product-alternative-offer",
+}
 DE_DELIVERIES_PAGINATE_URL = re.compile(
     re.escape(DE_BASE_URL) + r"/acp/myd-hub-deliveries-card-desktop/[^/]+/paginate\?.*"
 )
