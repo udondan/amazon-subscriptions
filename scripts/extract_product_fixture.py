@@ -3,8 +3,8 @@
 
 Product pages are several MB and full of personal data (delivery address, recommendations, order history). Only the
 title, the availability, the price blocks of all offers and, as blocks the parser must not read, the variants, the
-comparison widget and one sponsored product are kept. The title is replaced, the ASINs and seller names get fake values
-and offer, merchant, ad and session IDs are removed.
+comparison widget and one sponsored product are kept. The title is replaced, the ASINs, seller names and seller IDs get
+fake values and offer, merchant, ad and session IDs are removed.
 
 Usage:
 
@@ -26,6 +26,14 @@ KEEP = ["#productTitle", "#availability"]
 #: Blocks of the buybox offers, kept inside an empty copy of their accordion row
 OFFER_ROW = "#buyBoxAccordion > [id^='newAccordionRow']"
 OFFER_ROW_KEEP = ["#newAccordionCaption_feature_div", "#corePrice_feature_div", "#merchantInfoFeature_feature_div"]
+#: Seller names: the text of the merchant info of an offer row and, on pages loaded without session, its link
+SELLER_NAMES = [
+    "[offer-display-feature-name='desktop-merchant-info-collapsed'] .offer-display-feature-text-message",
+    "#sellerProfileTriggerId",
+]
+#: Texts of the seller elements that are no seller names, kept as they are
+NOT_SELLER_NAMES = {"Amazon", "Weitere Informationen über den Verkäufer"}
+SELLER_ID_RE = re.compile(r"(?<=[?&]seller=)[A-Z0-9]+")
 #: Price displays of the offers, kept inside an empty copy of their wrapper, which hides all but the selected one
 PRICE_DISPLAY = "#corePriceDisplay_desktop_feature_div"
 #: Blocks with prices of other products
@@ -52,8 +60,8 @@ def main() -> None:
     soup = BeautifulSoup(Path(args.page).read_text(encoding="utf-8"), "html.parser")
     asin = re.search(r"/dp/([A-Z0-9]{10})", str(soup.select_one("link[rel=canonical]")) or "")
     title = soup.select_one("#productTitle")
-    seller_names = (tag.get_text(strip=True) for tag in soup.select("#sellerProfileTriggerId"))
-    sellers = list(dict.fromkeys(filter(None, seller_names)))
+    seller_names = (tag.get_text(strip=True) for selector in SELLER_NAMES for tag in soup.select(selector))
+    sellers = list(dict.fromkeys(name for name in seller_names if name and name not in NOT_SELLER_NAMES))
 
     body = BeautifulSoup("<html><body></body></html>", "html.parser")
     assert body.body is not None
@@ -63,7 +71,8 @@ def main() -> None:
         wrapper = display.find_parent(id="apex_desktop_newAccordionRow")
         _append(body.body, _shell(body, wrapper, display) if wrapper else display)
     for row in soup.select(OFFER_ROW):
-        parts = [part for selector in OFFER_ROW_KEEP if (part := row.select_one(selector))]
+        # A row has a collapsed and an expanded merchant info with the same id
+        parts = [part for selector in OFFER_ROW_KEEP for part in row.select(selector)]
         _append(body.body, _shell(body, row, *parts))
     for selector in FOREIGN:
         for part in soup.select(selector):
@@ -76,7 +85,9 @@ def main() -> None:
         html = html.replace(title.get_text(strip=True), args.title)
     for i, seller in enumerate(sellers, 1):
         html = html.replace(seller, f"Testhändler {i:02}")
-    html = re.sub(r"seller=[A-Z0-9]+", "seller=A0TESTSELLER", html)
+    # Seller IDs are only kept in links, whose other query parameters are removed
+    seller_ids: dict[str, str] = {}
+    html = SELLER_ID_RE.sub(lambda m: seller_ids.setdefault(m.group(0), f"A0TESTSELLER{len(seller_ids) + 1:02}"), html)
     html = re.sub(r"\b\d{3}-\d{7}-\d{7}\b", "000-0000000-0000000", html)  # Session IDs
     if asin:
         html = html.replace(asin.group(1), args.asin)
@@ -107,8 +118,11 @@ def _append(parent: Tag, part: Tag | None) -> None:
         if isinstance(tag.get("class"), list):
             tag["class"] = [c for c in tag["class"] if not DROP_CLASSES.fullmatch(c)]
         if tag.get("href"):
-            # Paths keep the ASIN of a link, queries only hold tracking IDs
-            tag["href"] = re.sub(r"/ref=[^/?]*|\?.*", "", str(tag["href"]))
+            # Paths keep the ASIN of a link, queries only hold tracking IDs and the seller ID
+            href = str(tag["href"])
+            seller_id = SELLER_ID_RE.search(href)
+            query = f"?seller={seller_id.group(0)}" if seller_id else ""
+            tag["href"] = re.sub(r"/ref=[^/?]*|\?.*", "", href) + query
     parent.append(part)
 
 

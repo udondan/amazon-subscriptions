@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 #: ASINs in the links of a comparison widget entry
 _LINK_ASIN_RE = re.compile(r"/(?:dp|gp/product|product-reviews)/([A-Z0-9]{10})\b|[?&]pd_rd_i=([A-Z0-9]{10})\b")
 _ITEM_ID_PREFIX = "amzn1.asin."
+_SELLER_ID_RE = re.compile(r"[?&]seller=([A-Z0-9]+)")
 
 
 @dataclass(frozen=True)
@@ -187,13 +188,15 @@ def _cheapest_alternative(alternatives: list[Tag], locale: SubscriptionLocale) -
             continue
         unit_price = locale.parse_unit_price(text_of(offer.select_one(selectors.PRODUCT_UNIT_PRICE)))
         row = _offer_row(offer)
-        seller = text_of(row.select_one(selectors.PRODUCT_OFFER_SELLER)) if row else None
+        seller_link = row.select_one(selectors.PRODUCT_OFFER_SELLER_LINK) if row else None
+        seller_id = _SELLER_ID_RE.search(attr_of(seller_link, "href") or "")
         found.append(
             AlternativeOffer(
                 price=price,
                 unit_price=unit_price[0] if unit_price else None,
                 unit_price_unit=unit_price[1] if unit_price else None,
-                seller=seller,
+                seller=text_of(row.select_one(selectors.PRODUCT_OFFER_SELLER)) if row else None,
+                seller_id=seller_id.group(1) if seller_id else None,
             )
         )
     return min(found, key=lambda offer: offer.price, default=None)

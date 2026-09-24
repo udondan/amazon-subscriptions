@@ -56,8 +56,10 @@ class AlternativeOffer:
     price: Decimal
     unit_price: Decimal | None = None
     unit_price_unit: str | None = None
-    #: Name of the seller, if the page shows it.
+    #: Name of the seller as the offer shows it, ``Amazon`` if Amazon sells it, ``None`` if the page does not show it.
     seller: str | None = None
+    #: Merchant ID of the seller, from the link to its seller profile. ``None`` if Amazon sells it.
+    seller_id: str | None = None
     #: Alternative offers cannot be subscribed to.
     subscribable: bool = False
 

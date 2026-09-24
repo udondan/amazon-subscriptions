@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 import pytest
@@ -7,12 +8,16 @@ from amazon_subscriptions.locales.base import SubscriptionLocale
 from amazon_subscriptions.models import AlternativeOffer, ListPriceSource, ListPriceType
 from amazon_subscriptions.parse import ProductPrices, parse_product_page
 from amazon_subscriptions.serialize import to_json
-from tests.conftest import read_fixture
+from tests.conftest import FIXTURES, read_fixture
 
 #: The label of the list price in the price display of an offer
 DISPLAY_LABEL = 'apex-basisprice-label">UVP:<'
 #: The label of the list price in the entry "Dieser Artikel" of the comparison widget
 WIDGET_LABEL = "<span>UVP:</span>"
+#: Texts of the page around the seller name, which are never one
+SELLER_UI_TEXT_RE = re.compile(r"weitere informationen|details|verkäufer|versender|mehr anzeigen", re.IGNORECASE)
+#: The collapsed seller name of the alternative offer on a page loaded with a session
+SIGNED_IN_SELLER = 'tertiary offer-display-feature-text-message">Testhändler 02<'
 
 
 def test_product_with_list_price(de: SubscriptionLocale) -> None:
@@ -76,6 +81,54 @@ def test_product_alternative_offer(de: SubscriptionLocale) -> None:
             subscribable=False,
         ),
     )
+
+
+def test_product_alternative_offer_signed_in(de: SubscriptionLocale) -> None:
+    # Signed in, #sellerProfileTriggerId is the link "Weitere Informationen über den Verkäufer" of the seller popover
+    prices = parse_product_page(read_fixture("de/product-alternative-offer-signed-in.html"), de)
+    assert prices == ProductPrices(
+        price=Decimal("5.98"),
+        list_price=Decimal("5.75"),
+        list_price_type=ListPriceType.UVP,
+        list_price_source=ListPriceSource.WIDGET,
+        unit_price=Decimal("1.50"),
+        unit_price_unit="Stück",
+        alternative_offer=AlternativeOffer(
+            price=Decimal("5.45"),
+            unit_price=Decimal("1.36"),
+            unit_price_unit="Stück",
+            seller="Testhändler 02",
+            seller_id="A0TESTSELLER02",
+            subscribable=False,
+        ),
+    )
+
+
+def test_product_alternative_offer_sold_by_amazon(de: SubscriptionLocale) -> None:
+    # Amazon has no seller profile link
+    html = (
+        read_fixture("de/product-alternative-offer-signed-in.html")
+        .replace(SIGNED_IN_SELLER, 'tertiary offer-display-feature-text-message">Amazon<')
+        .replace('?seller=A0TESTSELLER02" id="sellerProfileTriggerId"', '"')
+    )
+    offer = parse_product_page(html, de).alternative_offer
+    assert offer is not None
+    assert (offer.seller, offer.seller_id) == ("Amazon", None)
+
+
+def test_product_alternative_offer_without_seller(de: SubscriptionLocale) -> None:
+    html = read_fixture("de/product-alternative-offer-signed-in.html").replace(
+        SIGNED_IN_SELLER, 'tertiary offer-display-feature-text-message"> <'
+    )
+    offer = parse_product_page(html, de).alternative_offer
+    assert offer is not None
+    assert (offer.seller, offer.seller_id) == (None, "A0TESTSELLER02")
+
+
+@pytest.mark.parametrize("fixture", sorted(path.name for path in (FIXTURES / "de").glob("product*.html")))
+def test_product_seller_is_no_ui_text(de: SubscriptionLocale, fixture: str) -> None:
+    offer = parse_product_page(read_fixture(f"de/{fixture}"), de).alternative_offer
+    assert offer is None or offer.seller is None or not SELLER_UI_TEXT_RE.search(offer.seller)
 
 
 def test_product_alternative_offer_no_foreign_prices(de: SubscriptionLocale) -> None:

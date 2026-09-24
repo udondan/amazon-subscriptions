@@ -122,6 +122,7 @@ def test_list_with_prices(mock: responses.RequestsMock) -> None:
         "unit_price": "1.36",
         "unit_price_unit": "Stück",
         "seller": "Testhändler 02",
+        "seller_id": None,
         "subscribable": False,
     }
 
