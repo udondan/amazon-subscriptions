@@ -1,0 +1,22 @@
+[tools]
+python = "3.14"
+uv = "0.12.18"
+
+[tasks.install]
+run = "uv sync --locked"
+
+[tasks.lint]
+run = [
+  "uv run ruff check .",
+  "uv run ruff format --check .",
+  "uv run mypy",
+]
+
+[tasks.lint-fix]
+run = [
+  "uv run ruff check --fix .",
+  "uv run ruff format .",
+]
+
+[tasks.test]
+run = "uv run pytest"
