@@ -13,7 +13,7 @@ from amazon_subscriptions.models import (
     UpcomingDelivery,
 )
 from amazon_subscriptions.parse import match_deliveries, parse_delivery_page, parse_subscriptions
-from amazon_subscriptions.parse.matching import match_delivery
+from amazon_subscriptions.parse.matching import match_delivery, titles_match
 from tests.conftest import DE_TODAY, read_fixture
 
 MONTHLY = Interval(1, IntervalUnit.MONTH)
@@ -119,3 +119,18 @@ def test_substitute_needs_unique_candidate() -> None:
     item = DeliveryItem("Testartikel ipsum", 1, MONTHLY, substitute=True)
     match_delivery(_delivery(item), subscriptions)
     assert item.subscription_id is None
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "expected"),
+    [
+        ("Testartikel lorem", "Testartikel lorem", True),
+        ("Testartikel lorem …", "Testartikel lorem ipsum", True),
+        ("Testartikel lorem ipsum", "testartikel lorem", True),
+        ("Testartikel lorem", "Testartikel ipsum", False),
+        ("", "Testartikel", False),
+        (None, None, False),
+    ],
+)
+def test_titles_match(a: str | None, b: str | None, expected: bool) -> None:
+    assert titles_match(a, b) is expected

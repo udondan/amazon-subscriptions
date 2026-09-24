@@ -36,16 +36,17 @@ class Subscription:
     interval: Interval | None = None
     next_delivery_date: datetime.date | None = None
     status: SubscriptionStatus = SubscriptionStatus.UNKNOWN
-    #: Regular price of one unit. Not shown on the pages that are read, so far always ``None``.
+    #: Regular (one-time purchase) price of one unit. Only read with ``with_prices``, from the product page.
     price: Decimal | None = None
-    #: List price (RRP) of one unit. Not shown on the pages that are read, so far always ``None``.
+    #: List price (RRP) of one unit, if the product page shows one. Only read with ``with_prices``.
     list_price: Decimal | None = None
     #: Subscribe & Save discount of the next delivery in percent.
     discount_percent: int | None = None
     #: Price of the next delivery of this subscription, for the whole quantity and with the discount applied.
     subscription_price: Decimal | None = None
-    #: Price per unit of measure (e.g. per kg). Not shown on the pages that are read, so far always ``None``.
+    #: Price per unit of measure of the regular price, e.g. per ``kg``. Only read with ``with_prices``.
     unit_price: Decimal | None = None
+    #: The unit of measure of ``unit_price`` as shown by Amazon, e.g. ``kg``, ``100 ml`` or ``Stück``.
     unit_price_unit: str | None = None
     #: ISO 4217 code of the amounts.
     currency: str | None = None
@@ -68,7 +69,11 @@ class DeliveryItem:
     #: The subscription of this item. Delivery pages do not link items to subscriptions, so they are matched by
     #: title (see :func:`amazon_subscriptions.parse.matching.match_deliveries`). ``None`` if no unique match.
     subscription_id: str | None = None
+    #: ASIN of the subscribed product, also if a backup product is sent instead.
     asin: str | None = None
+    #: ASIN of the backup product if ``substitute`` is ``True``. ``title``, ``price`` and ``discount_percent`` are then
+    #: the ones of the backup product. ``None`` if it could not be read from the subscription's detail sheet.
+    substitute_asin: str | None = None
 
 
 @dataclass

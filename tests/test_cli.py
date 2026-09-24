@@ -14,7 +14,7 @@ from click.testing import CliRunner
 from amazon_subscriptions import cli as cli_module
 from amazon_subscriptions.cli import cli
 from amazon_subscriptions.client import SubscriptionsClient
-from tests.conftest import DE_LANDING_URL, DE_TODAY, register_de_pages, store_login_cookies
+from tests.conftest import DE_LANDING_URL, DE_TODAY, register_de_pages, register_de_product_pages, store_login_cookies
 
 
 @pytest.fixture(autouse=True)
@@ -100,6 +100,21 @@ def test_list_text(mock: responses.RequestsMock) -> None:
     assert "2026-10-01  " in result.output
 
 
+def test_list_with_prices(mock: responses.RequestsMock) -> None:
+    log_in("amazon.de")
+    register_de_pages(mock)
+    register_de_product_pages(mock)
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "list", "--with-prices"])
+    assert result.exit_code == 0, result.output
+    assert "(regular 17.49 EUR, 24.99 EUR/l)" in result.output
+
+    result = CliRunner().invoke(cli, ["--domain", "amazon.de", "list", "--json", "--with-prices"])
+    assert result.exit_code == 0, result.output
+    by_asin = {s["asin"]: s for s in json.loads(result.output)}
+    assert (by_asin["B0TEST0024"]["price"], by_asin["B0TEST0024"]["list_price"]) == ("17.49", "27.99")
+    assert (by_asin["B0TEST0024"]["unit_price"], by_asin["B0TEST0024"]["unit_price_unit"]) == ("24.99", "l")
+
+
 def test_upcoming(mock: responses.RequestsMock) -> None:
     log_in("amazon.de")
     register_de_pages(mock)
@@ -108,6 +123,7 @@ def test_upcoming(mock: responses.RequestsMock) -> None:
     assert "2026-10-01: 11 items, total 150.19 EUR, changes until 2026-09-26" in result.output
     assert "2026-11-01: 16 items, total - EUR" not in result.output
     assert "2026-11-01: 16 items, total -" in result.output
+    assert "  [backup product B0TEST0056]" in result.output
 
 
 def test_upcoming_json(mock: responses.RequestsMock) -> None:
@@ -120,6 +136,8 @@ def test_upcoming_json(mock: responses.RequestsMock) -> None:
         ("2026-10-01", "150.19", "EUR"),
         ("2026-11-01", None, "EUR"),
     ]
+    [substitute] = [item for d in deliveries for item in d["items"] if item["substitute"]]
+    assert (substitute["asin"], substitute["substitute_asin"]) == ("B0TEST0024", "B0TEST0056")
 
 
 def test_changed_page_is_an_error(mock: responses.RequestsMock) -> None:

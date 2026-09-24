@@ -25,6 +25,12 @@ def _words(title: str | None) -> list[str]:
     return (title or "").rstrip(" .…").casefold().split()
 
 
+def titles_match(a: str | None, b: str | None) -> bool:
+    """``True`` if both titles are equal, or one is the first words of the other."""
+    shorter, longer = sorted((_words(a), _words(b)), key=len)
+    return bool(shorter) and longer[: len(shorter)] == shorter
+
+
 def _is_prefix(item: DeliveryItem, subscription: Subscription) -> bool:
     item_words, subscription_words = _words(item.title), _words(subscription.title)
     return 0 < len(item_words) < len(subscription_words) and subscription_words[: len(item_words)] == item_words

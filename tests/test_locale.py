@@ -97,3 +97,27 @@ def test_status_of_unknown_text(de: SubscriptionLocale, caplog: pytest.LogCaptur
 def test_is_substitute_alert(de: SubscriptionLocale) -> None:
     assert de.is_substitute_alert("Backup-Produkt wird versendet")
     assert not de.is_substitute_alert("Preis geändert")
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("24,99&nbsp;&euro; pro l", (Decimal("24.99"), "l")),
+        ("0,25 € pro Stück", (Decimal("0.25"), "Stück")),
+        ("1.234,50 € pro 100 ml", (Decimal("1234.50"), "100 ml")),
+        (None, None),
+    ],
+)
+def test_parse_unit_price(de: SubscriptionLocale, text: str | None, expected: tuple[Decimal, str] | None) -> None:
+    assert de.parse_unit_price(text) == expected
+
+
+def test_parse_unit_price_unknown_format(de: SubscriptionLocale, caplog: pytest.LogCaptureFixture) -> None:
+    assert de.parse_unit_price("24,99 € je Liter") is None
+    assert "not recognized" in caplog.text
+
+
+def test_is_list_price_label(de: SubscriptionLocale) -> None:
+    assert de.is_list_price_label("UVP:")
+    assert not de.is_list_price_label("Einmaliger Preis:")
+    assert not de.is_list_price_label(None)

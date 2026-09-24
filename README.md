@@ -31,6 +31,7 @@ amazon-subscriptions login              # asks for username, password and one-ti
 amazon-subscriptions list               # all subscriptions
 amazon-subscriptions upcoming           # upcoming deliveries with their items
 amazon-subscriptions list --json
+amazon-subscriptions list --with-prices # also regular, list and unit prices from the product pages
 amazon-subscriptions upcoming --json
 amazon-subscriptions check-session
 amazon-subscriptions logout
@@ -41,7 +42,8 @@ amazon-subscriptions logout
 never stored; the other commands never log in by themselves.
 
 Both `list` and `upcoming` load the same pages, about 3 requests plus one per upcoming delivery: `list` needs the
-delivery pages for the prices of the next delivery.
+delivery pages for the prices of the next delivery. `list --with-prices` loads the product page of every subscription
+on top, one request each.
 
 Options (before the command):
 
@@ -102,7 +104,8 @@ A list of subscriptions:
 | `interval.unit` | `day`, `week` or `month`. |
 | `status` | `active`, `paused`, `unavailable` (a backup product is sent instead), `skipped` or `unknown`. |
 | `discount_percent`, `subscription_price` | Discount and price of the whole quantity in the next delivery. Only set if that delivery shows prices, usually only the next one. |
-| `price`, `list_price`, `unit_price` | Not shown on the pages that are read, so far always `null`. |
+| `price`, `list_price` | Regular (one-time purchase) price and list price (RRP) of one unit, from the product page. Only read with `--with-prices`, `null` if the product is not available or the page shows no list price. |
+| `unit_price`, `unit_price_unit` | Price per unit of measure of `price` and its unit as Amazon shows it, e.g. `"24.99"` and `"l"`, `"kg"` or `"Stück"`. Only read with `--with-prices`. |
 | `raw_status_text` | The status or alert text shown by Amazon, e.g. for a backup product. |
 
 ### `upcoming --json`
@@ -124,7 +127,8 @@ A list of deliveries:
         "alert_text": null,
         "substitute": false,
         "subscription_id": "…",
-        "asin": "B0TEST0001"
+        "asin": "B0TEST0001",
+        "substitute_asin": null
       }
     ],
     "discount_tier": {"item_count": 11, "max_discount_unlocked": true, "savings": "12.34"},
@@ -141,6 +145,7 @@ A list of deliveries:
 | `change_deadline` | The last day to change the delivery. |
 | `items[].price` | Price of the whole quantity with the discount applied. Amazon shows prices only for the next delivery. |
 | `items[].substitute` | `true` if a backup product is sent instead of the subscribed one; `alert_text` has Amazon's note. |
+| `items[].asin`, `items[].substitute_asin` | `asin` is always the subscribed product. If `substitute` is `true`, `title`, `price` and `discount_percent` are those of the backup product, and `substitute_asin` is its ASIN. It is read from the subscription's detail sheet and is `null` if that sheet names another backup product. |
 | `items[].subscription_id` | The subscription of the item. Delivery pages do not link items to subscriptions, so they are matched by title, quantity and interval; `null` if there is no unique match. |
 | `total` | Sum of the item prices, `null` if an item has no price. |
 
@@ -154,7 +159,7 @@ from amazon_subscriptions.client import SubscriptionsClient
 from amazon_subscriptions.serialize import to_json
 
 session = AmazonSession(config=AmazonOrdersConfig())  # logged in with `amazon-subscriptions login`
-client = SubscriptionsClient(session)
+client = SubscriptionsClient(session)  # with_prices=True also loads the product pages
 print(to_json(client.get_subscriptions()))
 print(to_json(client.get_upcoming_deliveries()))
 ```
@@ -164,15 +169,18 @@ The parsers in `amazon_subscriptions.parse` are pure functions of the page HTML 
 ## Read-only
 
 The client only requests the Subscribe & Save overview, the further pages of its lists (loaded like the browser does
-when scrolling) and the page of each upcoming delivery. Every URL is checked against an allow-list before it is
-requested, so links that change subscriptions (skip, pause, cancel, change quantity or interval, deliver now) are
-never requested.
+when scrolling), the page of each upcoming delivery and, if a backup product is sent instead of a subscribed one, the
+detail sheet of that subscription. With `--with-prices` (`with_prices=True`) it also requests the product page
+(`/dp/<ASIN>`) of each subscription. Every URL is checked against an allow-list before it is requested, so links that
+change subscriptions (skip, pause, cancel, change quantity or interval, deliver now) are never requested.
 
 ## Limitations
 
 - Prices are only known for deliveries that show them, which is usually only the next one. `subscription_price` and
   `discount_percent` of a subscription are therefore only set if its next delivery is that one.
-- Regular, list and unit prices are not shown on the pages that are read.
+- Regular, list and unit prices are not shown on the Subscribe & Save pages. They are only read with `--with-prices`,
+  from the product pages of the subscribed products, so a backup product sent instead has none. Loading 30 or more
+  product pages at once can make Amazon answer with a captcha; the remaining prices then stay `null` with a warning.
 - The status texts of paused, skipped and unavailable subscriptions on the overview are not known yet, so they give
   `unknown` and a warning. A subscription whose next delivery sends a backup product is `unavailable`.
 - Only the deliveries shown on the overview and its further pages are read, which Amazon limits to a few months.
@@ -215,4 +223,6 @@ mise run test       # pytest
 Pull request titles and commits follow [Conventional Commits](https://www.conventionalcommits.org/); release-please
 creates the releases and the changelog from them.
 
-The test fixtures in `tests/fixtures` are anonymized pages of amazon.de, see `scripts/anonymize_fixtures.py`.
+The test fixtures in `tests/fixtures` are anonymized pages of amazon.de, see `scripts/anonymize_fixtures.py`. The
+product page fixtures (`product*.html`) are reduced to their title and price blocks with
+`scripts/extract_product_fixture.py`.

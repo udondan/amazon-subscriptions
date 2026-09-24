@@ -18,26 +18,36 @@ from amazonorders.session import AmazonSession
 from bs4 import BeautifulSoup
 from requests import Response
 
-from amazon_subscriptions.exceptions import PageStructureError, SessionExpiredError, SubscriptionsError
+from amazon_subscriptions.exceptions import (
+    CaptchaError,
+    PageStructureError,
+    SessionExpiredError,
+    SubscriptionsError,
+)
 from amazon_subscriptions.locales import get_locale
 from amazon_subscriptions.locales.base import SubscriptionLocale
 from amazon_subscriptions.models import Subscription, UpcomingDelivery
 from amazon_subscriptions.parse import (
     AcpWidget,
+    BackupItem,
     match_deliveries,
     parse_acp_widget,
     parse_deliveries_next_url,
     parse_delivery_cards,
     parse_delivery_page,
+    parse_product_page,
+    parse_subscription_detail,
     parse_subscriptions,
     parse_subscriptions_next_url,
     selectors,
+    titles_match,
 )
 from amazon_subscriptions.parse.util import Html
 
 logger = logging.getLogger(__name__)
 
 LANDING_PATH = "/auto-deliveries"
+DETAIL_PATH = "/auto-deliveries/ajax/subscription/"
 
 #: The only URLs (path and query) the client requests. Everything else is refused with a
 #: :class:`~amazon_subscriptions.exceptions.SubscriptionsError` before it is sent.
@@ -46,6 +56,10 @@ READ_ONLY_URLS = [
     re.compile(r"/auto-deliveries/?"),
     # Delivery page, as linked by a delivery card
     re.compile(r"/auto-deliveries/?\?(?!.*ajax)(?=.*\bdeliveryDate=\d+).*"),
+    # Detail sheet of a subscription, as opened by a subscription tile
+    re.compile(r"/auto-deliveries/ajax/subscription/?\?(?=.*\bsubscriptionId=)[^#]*"),
+    # Product page, only loaded with ``with_prices``
+    re.compile(r"/dp/[A-Z0-9]{10}"),
     # Next page of the subscriptions and deliveries widgets of the landing page
     re.compile(r"/acp/myd-hub-(?:subscriptions|deliveries)-card-desktop/[^/?]+/paginate\?[^/]*"),
 ]
@@ -83,12 +97,17 @@ class SubscriptionsClient:
         the client never logs in by itself.
     :param today: The date to resolve dates rendered without year, defaults to today.
     :param max_pages: The maximum number of further pages loaded per widget, to never loop forever.
+    :param with_prices: Also load the product page of each subscription for its regular price, list price and unit
+        price, which the Subscribe & Save pages do not show. One more request per subscription.
     """
 
-    def __init__(self, session: AmazonSession, today: date | None = None, max_pages: int = 20) -> None:
+    def __init__(
+        self, session: AmazonSession, today: date | None = None, max_pages: int = 20, with_prices: bool = False
+    ) -> None:
         self.session = session
         self.today = today or date.today()
         self.max_pages = max_pages
+        self.with_prices = with_prices
         self.base_url: str = session.config.constants.BASE_URL.rstrip("/")
         self.locale: SubscriptionLocale = get_locale(self.base_url)
         self._pages: _Pages | None = None
@@ -112,6 +131,9 @@ class SubscriptionsClient:
         subscriptions = self._load_subscriptions(landing, landing_url)
         deliveries = [self._load_delivery(card) for card in self._load_delivery_cards(landing, landing_url)]
         match_deliveries(subscriptions, deliveries)
+        self._load_substitutes(subscriptions, deliveries)
+        if self.with_prices:
+            self._load_prices(subscriptions)
         self._pages = _Pages(subscriptions, deliveries)
         return self._pages
 
@@ -152,6 +174,69 @@ class SubscriptionsClient:
         delivery.delivery_bundle_id = card.delivery_bundle_id
         delivery.url = url
         return delivery
+
+    def _load_substitutes(self, subscriptions: list[Subscription], deliveries: list[UpcomingDelivery]) -> None:
+        """Set the ASIN of the backup products sent instead of subscribed ones.
+
+        Delivery pages show no ASINs, so the detail sheet of the subscription is loaded, which names its backup
+        product. It is only used if its title matches the item's title.
+        """
+        by_id = {s.subscription_id: s for s in subscriptions}
+        backups: dict[str, BackupItem | None] = {}
+        for delivery in deliveries:
+            for item in delivery.items:
+                subscription = by_id.get(item.subscription_id or "")
+                if not item.substitute or subscription is None:
+                    continue
+                if subscription.subscription_id not in backups:
+                    backups[subscription.subscription_id] = self._load_backup_item(subscription)
+                backup = backups[subscription.subscription_id]
+                if backup is not None and titles_match(backup.title, item.title):
+                    item.substitute_asin = backup.asin
+                else:
+                    logger.warning(
+                        f"The backup product of subscription {subscription.subscription_id} is not the item "
+                        f"{item.title!r} of {delivery.date}, so its ASIN is not known."
+                    )
+
+    def _load_backup_item(self, subscription: Subscription) -> BackupItem | None:
+        query = {"subscriptionId": subscription.subscription_id, "enableMydExperience": "1", "clientName": "mydHub"}
+        if subscription.asin:
+            query["subAsin"] = subscription.asin
+        url = self._absolute(f"{DETAIL_PATH}?{urlencode(query)}")
+        try:
+            html = self._get(url)
+        except (SessionExpiredError, CaptchaError):
+            raise
+        except SubscriptionsError as e:
+            logger.warning(f"The detail sheet of subscription {subscription.subscription_id} was not loaded: {e}")
+            return None
+        return parse_subscription_detail(self._soup(html), url)
+
+    def _load_prices(self, subscriptions: list[Subscription]) -> None:
+        """Set the prices of the product pages of the subscriptions.
+
+        A product page that fails leaves the prices of its subscription ``None``. A captcha stops loading them, as
+        every further request would get one too.
+        """
+        for subscription in subscriptions:
+            if not subscription.asin:
+                continue
+            url = self._absolute(f"/dp/{subscription.asin}")
+            try:
+                prices = parse_product_page(self._soup(self._get(url)), self.locale, url)
+            except CaptchaError as e:
+                logger.warning(f"Stopped loading the product pages for their prices: {e}")
+                return
+            except SessionExpiredError:
+                raise
+            except SubscriptionsError as e:
+                logger.warning(f"The product page of {subscription.asin} was not loaded: {e}")
+                continue
+            subscription.price = prices.price
+            subscription.list_price = prices.list_price
+            subscription.unit_price = prices.unit_price
+            subscription.unit_price_unit = prices.unit_price_unit
 
     def _paginate(
         self, landing: BeautifulSoup, next_page_selector: str, next_url_of: Callable[[Html], str | None], name: str

@@ -1,3 +1,4 @@
+import html
 import logging
 import re
 from collections.abc import Mapping
@@ -59,6 +60,11 @@ class SubscriptionLocale:
     MAX_DISCOUNT_UNLOCKED_TEXT: ClassVar[str]
     #: Item alerts stating that a backup product is sent instead of the subscribed one.
     SUBSTITUTE_ALERT_TEXTS: ClassVar[list[str]]
+
+    #: Unit price of a product page, e.g. "24,99 € pro l". Groups: amount, unit.
+    UNIT_PRICE_RE: ClassVar[re.Pattern[str]]
+    #: Labels of the list price (RRP) of a product page, matched as prefix.
+    LIST_PRICE_LABELS: ClassVar[list[str]]
 
     #: Amount pattern, e.g. "1.234,56". Groups: integer part, decimals (optional).
     AMOUNT_RE: ClassVar[re.Pattern[str]]
@@ -135,6 +141,20 @@ class SubscriptionLocale:
     def parse_savings(self, text: str | None) -> Decimal | None:
         match = self.SAVINGS_RE.search(normalize_space(text or ""))
         return self.parse_amount(match.group(1)) if match else None
+
+    def parse_unit_price(self, text: str | None) -> tuple[Decimal, str] | None:
+        """Parse a unit price such as ``24,99 € pro l`` into amount and unit."""
+        match = self.UNIT_PRICE_RE.fullmatch(normalize_space(html.unescape(text or "")))
+        if not match:
+            if text:
+                logger.warning(f"Unit price {text!r} was not recognized, so it was not parsed.")
+            return None
+        amount = self.parse_amount(match.group(1))
+        return (amount, match.group(2)) if amount is not None else None
+
+    def is_list_price_label(self, text: str | None) -> bool:
+        text = normalize_space(text or "").lower()
+        return any(text.startswith(label.lower()) for label in self.LIST_PRICE_LABELS)
 
     def status_of(self, text: str) -> SubscriptionStatus:
         """The status of a subscription tile's status text."""

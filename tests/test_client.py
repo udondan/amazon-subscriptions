@@ -19,12 +19,15 @@ from amazon_subscriptions.parse import parse_acp_widget, selectors
 from tests.conftest import (
     DE_BASE_URL,
     DE_DELIVERIES_PAGINATE_URL,
+    DE_DETAIL_URL,
     DE_LANDING_URL,
+    DE_PRODUCT_URL,
     DE_SUBSCRIPTIONS_PAGINATE_URL,
     DE_TODAY,
     make_session,
     read_fixture,
     register_de_pages,
+    register_de_product_pages,
     without_deliveries_next_page,
 )
 
@@ -67,7 +70,110 @@ def test_loads_subscriptions_and_deliveries(tmp_path: Path, mock: responses.Requ
         ("POST", urlparse(mock.calls[1].request.url).path),
         ("GET", "/auto-deliveries/"),
         ("GET", "/auto-deliveries/"),
+        # Detail sheet of the subscription whose backup product is sent
+        ("GET", "/auto-deliveries/ajax/subscription/"),
     ]
+    # Product pages are only loaded with ``with_prices``
+    assert all(s.price is None and s.unit_price is None for s in subscriptions)
+
+
+def test_with_prices(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    register_de_pages(mock)
+    register_de_product_pages(mock)
+    subscriptions = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, with_prices=True).get_subscriptions()
+
+    product_calls = [c for c in mock.calls if DE_PRODUCT_URL.fullmatch(c.request.url or "")]
+    assert len(product_calls) == len(subscriptions) == 32
+    by_asin = {s.asin: s for s in subscriptions}
+    with_list_price, unavailable, other = by_asin["B0TEST0024"], by_asin["B0TEST0025"], by_asin["B0TEST0026"]
+    assert (with_list_price.price, with_list_price.list_price) == (Decimal("17.49"), Decimal("27.99"))
+    assert (with_list_price.unit_price, with_list_price.unit_price_unit) == (Decimal("24.99"), "l")
+    assert (unavailable.price, unavailable.list_price, unavailable.unit_price) == (None, None, None)
+    assert (other.price, other.list_price, other.unit_price, other.unit_price_unit) == (
+        Decimal("26.49"),
+        None,
+        Decimal("0.25"),
+        "Stück",
+    )
+
+
+def test_with_prices_captcha_stops_loading_product_pages(
+    tmp_path: Path, mock: responses.RequestsMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    register_de_pages(mock)
+    mock.get(DE_PRODUCT_URL, body='<html><body><form action="/errors/validateCaptcha"></form></body></html>')
+    subscriptions = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, with_prices=True).get_subscriptions()
+
+    assert len(subscriptions) == 32
+    assert all(s.price is None for s in subscriptions)
+    assert len([c for c in mock.calls if DE_PRODUCT_URL.fullmatch(c.request.url or "")]) == 1
+    assert "Stopped loading the product pages" in caplog.text
+
+
+def test_with_prices_product_page_error(
+    tmp_path: Path, mock: responses.RequestsMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    register_de_pages(mock)
+    mock.get(f"{DE_BASE_URL}/dp/B0TEST0024", status=404)
+    register_de_product_pages(mock)
+    subscriptions = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, with_prices=True).get_subscriptions()
+
+    by_asin = {s.asin: s for s in subscriptions}
+    assert by_asin["B0TEST0024"].price is None
+    assert by_asin["B0TEST0026"].price == Decimal("26.49")
+    assert "The product page of B0TEST0024 was not loaded" in caplog.text
+
+
+def test_substitute_asin(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    register_de_pages(mock)
+    deliveries = make_client(tmp_path).get_upcoming_deliveries()
+
+    [substitute] = [item for d in deliveries for item in d.items if item.substitute]
+    assert substitute.asin == "B0TEST0024"
+    assert substitute.substitute_asin == "B0TEST0056"
+    assert all(item.substitute_asin is None for d in deliveries for item in d.items if not item.substitute)
+    [request] = [c.request for c in mock.calls if DE_DETAIL_URL.fullmatch(c.request.url or "")]
+    assert parse_qs(urlparse(request.url).query) == {
+        "subscriptionId": ["SNST0_0B3FB3F12A77505F46C3"],
+        "subAsin": ["B0TEST0024"],
+        "enableMydExperience": ["1"],
+        "clientName": ["mydHub"],
+    }
+
+
+def test_substitute_with_other_backup_product(
+    tmp_path: Path, mock: responses.RequestsMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    detail = read_fixture("de/subscription-detail.html").replace(
+        "Testartikel 50 incididunt ut labore", "Testartikel 51 ipsum dolor sit"
+    )
+    mock.get(DE_DETAIL_URL, body=detail.encode(), content_type="text/html")
+    register_de_pages(mock)
+
+    deliveries = make_client(tmp_path).get_upcoming_deliveries()
+
+    assert all(item.substitute_asin is None for d in deliveries for item in d.items)
+    assert "is not the item 'Testartikel 50" in caplog.text
+
+
+def test_substitute_detail_sheet_error(
+    tmp_path: Path, mock: responses.RequestsMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    mock.get(DE_DETAIL_URL, status=500, body="")
+    register_de_pages(mock)
+
+    deliveries = make_client(tmp_path).get_upcoming_deliveries()
+
+    assert all(item.substitute_asin is None for d in deliveries for item in d.items)
+    assert "was not loaded" in caplog.text
+
+
+def test_substitute_detail_sheet_captcha(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    mock.get(DE_DETAIL_URL, body='<form action="/errors/validateCaptcha"></form>')
+    register_de_pages(mock)
+
+    with pytest.raises(CaptchaError):
+        make_client(tmp_path).get_upcoming_deliveries()
 
 
 def test_next_page_is_requested_like_the_browser(tmp_path: Path, mock: responses.RequestsMock) -> None:
@@ -228,6 +334,11 @@ def test_changed_page(tmp_path: Path, mock: responses.RequestsMock) -> None:
         "https://www.amazon.com/auto-deliveries",
         "http://www.amazon.de/auto-deliveries",
         f"{DE_BASE_URL}/auto-deliveries#x",
+        f"{DE_BASE_URL}/auto-deliveries/ajax/subscription/backupItem?subscriptionId=1&ASIN=B0TEST0001",
+        f"{DE_BASE_URL}/auto-deliveries/ajax/subscription/?shipId=1",
+        f"{DE_BASE_URL}/dp/B0TEST0001?smid=1",
+        f"{DE_BASE_URL}/dp/B0TEST0001/ref=x",
+        f"{DE_BASE_URL}/gp/product/B0TEST0001",
     ],
 )
 def test_refuses_unknown_urls(tmp_path: Path, url: str) -> None:
@@ -242,6 +353,8 @@ def test_refuses_unknown_urls(tmp_path: Path, url: str) -> None:
         f"{DE_LANDING_URL}/",
         f"{DE_LANDING_URL}/?_encoding=UTF8&shipId=X&deliveryDate=1793487600000&deliveryBundleId=abc&ref_=x",
         f"{DE_BASE_URL}/acp/myd-hub-deliveries-card-desktop/myd-hub-x-1/paginate?page-type=RCXSubs&stamp=1",
+        f"{DE_BASE_URL}/auto-deliveries/ajax/subscription/?subscriptionId=SNST0_1&subAsin=B0TEST0001",
+        f"{DE_BASE_URL}/dp/B0TEST0001",
     ],
 )
 def test_allows_read_only_urls(tmp_path: Path, url: str) -> None:
