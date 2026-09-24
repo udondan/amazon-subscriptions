@@ -14,24 +14,32 @@ from amazon_subscriptions.exceptions import PageStructureError
 from amazon_subscriptions.locales.base import SubscriptionLocale
 from amazon_subscriptions.models import DeliveryItem, DiscountTier, UpcomingDelivery
 from amazon_subscriptions.parse import selectors
-from amazon_subscriptions.parse.util import attr_of, check_page, soup_of, text_of
+from amazon_subscriptions.parse.util import Html, attr_of, check_page, soup_of, text_of
 
 logger = logging.getLogger(__name__)
 
 
-def parse_delivery_cards(html: str, locale: SubscriptionLocale, page: str | None = None) -> list[UpcomingDelivery]:
+def parse_delivery_cards(
+    html: Html, locale: SubscriptionLocale, page: str | None = None, fragment: bool = False
+) -> list[UpcomingDelivery]:
     """Parse the delivery cards of the landing page, without items. Their ``url`` leads to the delivery page.
 
-    :raises PageStructureError: If the landing page has no deliveries widget, or a card has no date.
+    :param fragment: ``True`` for a fragment returned by the pagination of the deliveries widget, which must have
+        cards. The landing page must have the widget, but may have no cards.
+    :raises PageStructureError: If the landing page has no deliveries widget, a fragment has no cards, or a card has
+        no date.
     """
     soup = soup_of(html)
     check_page(soup, page)
-    if soup.select_one(selectors.DELIVERIES_WIDGET) is None:
+    cards = soup.select(selectors.DELIVERY_CARD)
+    if fragment and not cards:
+        raise PageStructureError(f"No delivery cards found ({selectors.DELIVERY_CARD!r})", page)
+    if not fragment and soup.select_one(selectors.DELIVERIES_WIDGET) is None:
         raise PageStructureError(f"No deliveries found ({selectors.DELIVERIES_WIDGET!r})", page)
-    return [_parse_card(card, locale, page) for card in soup.select(selectors.DELIVERY_CARD)]
+    return [_parse_card(card, locale, page) for card in cards]
 
 
-def parse_deliveries_next_url(html: str) -> str | None:
+def parse_deliveries_next_url(html: Html) -> str | None:
     """The URL of the next page of the deliveries widget, if there is one."""
     return attr_of(soup_of(html).select_one(selectors.DELIVERIES_NEXT_PAGE), "data-next-url")
 
@@ -68,7 +76,7 @@ def _parse_card(card: Tag, locale: SubscriptionLocale, page: str | None) -> Upco
     )
 
 
-def parse_delivery_page(html: str, locale: SubscriptionLocale, page: str | None = None) -> UpcomingDelivery:
+def parse_delivery_page(html: Html, locale: SubscriptionLocale, page: str | None = None) -> UpcomingDelivery:
     """Parse a delivery page with its items.
 
     Items are not linked to subscriptions yet, see :func:`amazon_subscriptions.parse.matching.match_deliveries`.

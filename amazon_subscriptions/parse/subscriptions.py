@@ -11,13 +11,13 @@ from amazon_subscriptions.exceptions import PageStructureError
 from amazon_subscriptions.locales.base import SubscriptionLocale, normalize_space
 from amazon_subscriptions.models import Subscription, SubscriptionStatus
 from amazon_subscriptions.parse import selectors
-from amazon_subscriptions.parse.util import attr_of, check_page, soup_of, text_of
+from amazon_subscriptions.parse.util import Html, attr_of, check_page, soup_of, text_of
 
 logger = logging.getLogger(__name__)
 
 
 def parse_subscriptions(
-    html: str, locale: SubscriptionLocale, today: date, page: str | None = None
+    html: Html, locale: SubscriptionLocale, today: date, page: str | None = None
 ) -> list[Subscription]:
     """Parse the subscriptions of the landing page or of a fragment of its paginated grid.
 
@@ -37,7 +37,7 @@ def parse_subscriptions(
     return [_parse_tile(tile, locale, today, page) for tile in tiles]
 
 
-def parse_subscriptions_next_url(html: str) -> str | None:
+def parse_subscriptions_next_url(html: Html) -> str | None:
     """The URL of the next page of the subscriptions grid, if there is one."""
     return attr_of(soup_of(html).select_one(selectors.SUBSCRIPTIONS_NEXT_PAGE), "data-next-url")
 

@@ -4,9 +4,12 @@ from amazon_subscriptions.exceptions import CaptchaError, SessionExpiredError
 from amazon_subscriptions.locales.base import normalize_space
 from amazon_subscriptions.parse import selectors
 
+#: A page as text, or already parsed to avoid parsing large pages more than once.
+Html = str | BeautifulSoup
 
-def soup_of(html: str) -> BeautifulSoup:
-    return BeautifulSoup(html, "html.parser")
+
+def soup_of(html: Html) -> BeautifulSoup:
+    return html if isinstance(html, BeautifulSoup) else BeautifulSoup(html, "html.parser")
 
 
 def text_of(tag: Tag | None, separator: str = " ") -> str | None:
