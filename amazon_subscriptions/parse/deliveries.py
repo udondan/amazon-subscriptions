@@ -6,13 +6,14 @@ import re
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo
 
 from bs4 import Tag
 
 from amazon_subscriptions import dates
 from amazon_subscriptions.exceptions import PageStructureError
 from amazon_subscriptions.locales.base import SubscriptionLocale
-from amazon_subscriptions.models import DeliveryItem, DiscountTier, UpcomingDelivery
+from amazon_subscriptions.models import DeliveryItem, DiscountTier, ParseError, UpcomingDelivery
 from amazon_subscriptions.parse import selectors
 from amazon_subscriptions.parse.util import Html, attr_of, check_page, soup_of, text_of
 
@@ -36,9 +37,13 @@ def parse_delivery_cards(
     if fragment and not cards and not soup.get_text(strip=True) and not soup.find(["img", "a", "span"]):
         return []
     if fragment and not cards:
-        raise PageStructureError(f"No delivery cards found ({selectors.DELIVERY_CARD!r})", page)
+        raise PageStructureError(
+            f"No delivery cards found ({selectors.DELIVERY_CARD!r})", page, selector=selectors.DELIVERY_CARD
+        )
     if not fragment and soup.select_one(selectors.DELIVERIES_WIDGET) is None:
-        raise PageStructureError(f"No deliveries found ({selectors.DELIVERIES_WIDGET!r})", page)
+        raise PageStructureError(
+            f"No deliveries found ({selectors.DELIVERIES_WIDGET!r})", page, selector=selectors.DELIVERIES_WIDGET
+        )
     return [_parse_card(card, locale, page) for card in cards]
 
 
@@ -50,7 +55,7 @@ def parse_deliveries_next_url(html: Html) -> str | None:
 def _parse_card(card: Tag, locale: SubscriptionLocale, page: str | None) -> UpcomingDelivery:
     url = attr_of(card.select_one(selectors.DELIVERY_CARD_LINK), "href")
     query = parse_qs(urlparse(url or "").query)
-    epoch_ms = (query.get("deliveryDate") or [""])[0]
+    epoch_ms = _delivery_date_param(url)
     arrival = deadline = None
     for text in (text_of(tag) for tag in card.select("span")):
         if text and text.startswith(locale.ARRIVAL_PREFIX):
@@ -84,17 +89,35 @@ def parse_delivery_page(html: Html, locale: SubscriptionLocale, page: str | None
 
     Items are not linked to subscriptions yet, see :func:`amazon_subscriptions.parse.matching.match_deliveries`.
 
-    :raises PageStructureError: If the page has no delivery date or no items.
+    If the page shows no delivery date, it is taken from the ``deliveryDate`` of the page URL ``page``, and the missing
+    date is noted in ``parse_errors`` of the delivery.
+
+    :raises PageStructureError: If neither the page nor its URL has a delivery date, or the page has no items.
     """
     soup = soup_of(html)
     check_page(soup, page)
+    parse_errors = []
     delivery_date = _parse_delivery_date(text_of(soup.select_one(selectors.DELIVERY_DATE)))
     if delivery_date is None:
-        raise PageStructureError(f"No delivery date found ({selectors.DELIVERY_DATE!r})", page)
+        delivery_date = _date_of_epoch_ms(_delivery_date_param(page), locale.TIMEZONE)
+        if delivery_date is None:
+            raise PageStructureError(
+                f"No delivery date found ({selectors.DELIVERY_DATE!r})", page, selector=selectors.DELIVERY_DATE
+            )
+        logger.debug(f"The delivery page shows no delivery date, so it was taken from its URL: {delivery_date}")
+        parse_errors.append(
+            ParseError(
+                url=page,
+                message="No delivery date found, it was taken from the URL",
+                selector=selectors.DELIVERY_DATE,
+            )
+        )
 
     item_tags = soup.select(selectors.DELIVERY_ITEM)
     if not item_tags:
-        raise PageStructureError(f"No delivery items found ({selectors.DELIVERY_ITEM!r})", page)
+        raise PageStructureError(
+            f"No delivery items found ({selectors.DELIVERY_ITEM!r})", page, selector=selectors.DELIVERY_ITEM
+        )
     items = [_parse_item(tag, locale) for tag in item_tags]
 
     item_count = locale.parse_item_count(text_of(soup.select_one(selectors.DELIVERY_ITEM_COUNT)))
@@ -117,7 +140,20 @@ def parse_delivery_page(html: Html, locale: SubscriptionLocale, page: str | None
         ),
         total=sum((p for p in prices if p is not None), Decimal("0")) if None not in prices else None,
         currency=locale.CURRENCY,
+        parse_errors=parse_errors,
     )
+
+
+def _delivery_date_param(url: str | None) -> str:
+    """The ``deliveryDate`` of a delivery link, a timestamp in milliseconds, or ``""``."""
+    return (parse_qs(urlparse(url or "").query).get("deliveryDate") or [""])[0]
+
+
+def _date_of_epoch_ms(epoch_ms: str, time_zone: str) -> date | None:
+    """The date of a timestamp in milliseconds in the storefront's time zone, where it is midnight."""
+    if not epoch_ms.isdigit():
+        return None
+    return datetime.fromtimestamp(int(epoch_ms) / 1000, tz=ZoneInfo(time_zone)).date()
 
 
 def _parse_delivery_date(text: str | None) -> date | None:
@@ -127,7 +163,7 @@ def _parse_delivery_date(text: str | None) -> date | None:
         # The local date of the storefront, not converted to UTC
         return date.fromisoformat(value[:10])
     except (ValueError, KeyError, TypeError):
-        logger.warning(f"Delivery date {text!r} was not recognized, so it was not parsed.")
+        logger.debug(f"Delivery date {text!r} was not recognized, so it was not parsed.")
         return None
 
 

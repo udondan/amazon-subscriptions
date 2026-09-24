@@ -31,6 +31,8 @@ class SubscriptionLocale:
     AMAZON_LOCALE: ClassVar[type[Locale]]
     #: ISO 4217 code of the storefront's currency.
     CURRENCY: ClassVar[str]
+    #: IANA time zone of the storefront, in which the timestamps of delivery links are midnight.
+    TIMEZONE: ClassVar[str]
 
     #: Text before the next delivery date of a subscription tile.
     NEXT_DELIVERY_PREFIX: ClassVar[str]

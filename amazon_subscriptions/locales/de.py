@@ -12,6 +12,7 @@ class DeSubscriptionLocale(SubscriptionLocale):
 
     AMAZON_LOCALE = DeDE
     CURRENCY = "EUR"
+    TIMEZONE = "Europe/Berlin"
 
     NEXT_DELIVERY_PREFIX = "Nächste Lieferung:"
     TILE_ACTION_TEXTS: ClassVar[list[str]] = ["Abo verwalten"]
