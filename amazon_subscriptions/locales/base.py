@@ -1,5 +1,6 @@
 import logging
 import re
+from collections.abc import Mapping
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import ClassVar
@@ -7,6 +8,7 @@ from typing import ClassVar
 from amazonorders.localization import Locale
 
 from amazon_subscriptions.dates import DateParts
+from amazon_subscriptions.exceptions import SubscriptionsError
 from amazon_subscriptions.models import Interval, IntervalUnit, SubscriptionStatus
 
 logger = logging.getLogger(__name__)
@@ -24,12 +26,10 @@ class SubscriptionLocale:
     :data:`amazon_subscriptions.locales.LOCALES_BY_TLD`.
     """
 
-    #: The Locale of amazon-orders for the storefront, used for full dates.
+    #: The Locale of amazon-orders for the storefront, used for full dates and month names.
     AMAZON_LOCALE: ClassVar[type[Locale]]
     #: ISO 4217 code of the storefront's currency.
     CURRENCY: ClassVar[str]
-    #: Month names and abbreviations, lower case.
-    MONTHS: ClassVar[dict[str, int]]
 
     #: Text before the next delivery date of a subscription tile.
     NEXT_DELIVERY_PREFIX: ClassVar[str]
@@ -69,7 +69,10 @@ class SubscriptionLocale:
 
     def __init__(self) -> None:
         self.amazon_locale = self.AMAZON_LOCALE()
-        months = "|".join(sorted(map(re.escape, self.MONTHS), key=len, reverse=True))
+        self.months: Mapping[str, int] = self.amazon_locale.MONTHS
+        if not self.months:
+            raise SubscriptionsError(f"{self.AMAZON_LOCALE.__name__} of amazon-orders defines no month names.")
+        months = "|".join(sorted(map(re.escape, self.months), key=len, reverse=True))
         self._date_re = re.compile(
             r"(?<!\d)(\d{1,2})\.\s*(" + months + r")\.?(?![a-zäöü])(?:\s+(\d{4}))?(?!\d)", re.IGNORECASE
         )
@@ -95,7 +98,7 @@ class SubscriptionLocale:
             return None
         text = normalize_space(text)
         found = {
-            (int(day), self.MONTHS[month.lower()], int(year) if year else None)
+            (int(day), self.months[month.lower()], int(year) if year else None)
             for day, month, year in self._date_re.findall(text)
         }
         if len(found) != 1:

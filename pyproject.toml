@@ -7,7 +7,7 @@ license = "MIT"
 authors = [{ name = "Daniel Schroeder" }]
 requires-python = ">=3.10"
 dependencies = [
-    "amazon-orders @ git+https://github.com/udondan/amazon-orders@1c0f31f1a48f4aa59333ff904e815a3046579ffc",
+    "amazon-orders @ git+https://github.com/udondan/amazon-orders@b454bffa4d88b4953b05f74a31151d40119c29b4",
     "beautifulsoup4==4.15.0",
     "click==8.5.0",
 ]

@@ -12,21 +12,6 @@ class DeSubscriptionLocale(SubscriptionLocale):
 
     AMAZON_LOCALE = DeDE
     CURRENCY = "EUR"
-    # The month names of amazon-orders' DeDE are private, so they are repeated here
-    MONTHS: ClassVar[dict[str, int]] = {
-        "januar": 1, "jan": 1, "jänner": 1,
-        "februar": 2, "feb": 2,
-        "märz": 3, "mär": 3, "mrz": 3,
-        "april": 4, "apr": 4,
-        "mai": 5,
-        "juni": 6, "jun": 6,
-        "juli": 7, "jul": 7,
-        "august": 8, "aug": 8,
-        "september": 9, "sept": 9, "sep": 9,
-        "oktober": 10, "okt": 10,
-        "november": 11, "nov": 11,
-        "dezember": 12, "dez": 12,
-    }  # fmt: skip
 
     NEXT_DELIVERY_PREFIX = "Nächste Lieferung:"
     TILE_ACTION_TEXTS: ClassVar[list[str]] = ["Abo verwalten"]

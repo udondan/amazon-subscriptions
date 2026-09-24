@@ -9,7 +9,7 @@ resolution-markers = [
 [[package]]
 name = "amazon-orders"
 version = "4.6.0"
-source = { git = "https://github.com/udondan/amazon-orders?rev=1c0f31f1a48f4aa59333ff904e815a3046579ffc#1c0f31f1a48f4aa59333ff904e815a3046579ffc" }
+source = { git = "https://github.com/udondan/amazon-orders?rev=b454bffa4d88b4953b05f74a31151d40119c29b4#b454bffa4d88b4953b05f74a31151d40119c29b4" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "click" },
@@ -41,7 +41,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "amazon-orders", git = "https://github.com/udondan/amazon-orders?rev=1c0f31f1a48f4aa59333ff904e815a3046579ffc" },
+    { name = "amazon-orders", git = "https://github.com/udondan/amazon-orders?rev=b454bffa4d88b4953b05f74a31151d40119c29b4" },
     { name = "beautifulsoup4", specifier = "==4.15.0" },
     { name = "click", specifier = "==8.5.0" },
 ]
