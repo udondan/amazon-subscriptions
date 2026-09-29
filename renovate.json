@@ -1,14 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>udondan/renovate-config"],
-  "lockFileMaintenance": {
-    "enabled": true
-  },
   "packageRules": [
-    {
-      "matchUpdateTypes": ["major"],
-      "automerge": false
-    },
     {
       "description": "Pinned to a commit of the fork with amazon.de support; changed by hand until upstream releases it.",
       "matchPackageNames": ["amazon-orders"],
