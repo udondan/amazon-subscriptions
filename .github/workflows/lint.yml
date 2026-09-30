@@ -2,12 +2,8 @@
 name: Lint
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  # Called by mr-test.yml, so its required job covers the linters too.
+  workflow_call:
 
 permissions:
   contents: read
