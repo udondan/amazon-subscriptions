@@ -1,6 +1,12 @@
 [tools]
 python = "3.14"
 uv = "0.12.18"
+# Linters of lint.yml. Each lint job installs only the ones it runs.
+actionlint = "1.7.12"
+lychee = "0.24.2"
+"pypi:yamllint" = "1.38.0"
+# The runner's own shellcheck is older and reports differently. actionlint runs it over every `run:` block.
+shellcheck = "0.11.0"
 
 [tasks.install]
 run = "uv sync --locked"
