@@ -11,9 +11,6 @@ permissions:
 
 jobs:
   publish:
-    # Off until amazon-orders is required by version instead of by git URL, which PyPI rejects. Set the repository
-    # variable PUBLISH_TO_PYPI to true to publish.
-    if: vars.PUBLISH_TO_PYPI == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
