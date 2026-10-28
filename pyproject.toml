@@ -1,6 +1,6 @@
 [project]
 name = "amazon-subscriptions"
-version = "1.0.0"
+version = "1.0.1"
 description = "Read Amazon Subscribe & Save subscriptions and upcoming deliveries as JSON (read-only)"
 readme = "README.md"
 license = "MIT"
