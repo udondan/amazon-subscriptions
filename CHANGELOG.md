@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/udondan/amazon-subscriptions/compare/v1.0.0...v1.0.1) (2026-10-28)
+
+
+### Documentation
+
+* install from PyPI, where every release is published ([#22](https://github.com/udondan/amazon-subscriptions/issues/22)) ([f56bba4](https://github.com/udondan/amazon-subscriptions/commit/f56bba404a031c7476a8887f9b45e9c4448bebf7))
+
 ## [1.0.0](https://github.com/udondan/amazon-subscriptions/compare/v0.1.0...v1.0.0) (2026-10-28)
 
 
