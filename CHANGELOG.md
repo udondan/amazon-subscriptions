@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/udondan/amazon-subscriptions/compare/v0.1.0...v1.0.0) (2026-10-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* the English instead of the German pages are read, and the configured language package is ignored. The list price type "uvp" is now "rrp". amazon-orders comes from PyPI, version 5.2.0 or a later 5.x, which keeps the session of each site in its own file (e.g. cookies.amazon.de.json); a session stored in cookies.json is still used. Sites other than amazon.de are no longer rejected if they offer English.
+
+### Features
+
+* parse the English Subscribe & Save pages ([#20](https://github.com/udondan/amazon-subscriptions/issues/20)) ([f6361e4](https://github.com/udondan/amazon-subscriptions/commit/f6361e4fecd94247b5b4f13ad34ce57749251b94))
+
 ## 0.1.0 (2026-10-13)
 
 
