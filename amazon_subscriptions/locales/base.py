@@ -1,15 +1,11 @@
 import html
 import logging
 import re
-from collections.abc import Mapping
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import ClassVar
 
-from amazonorders.localization import Locale
-
 from amazon_subscriptions.dates import DateParts
-from amazon_subscriptions.exceptions import SubscriptionsError
 from amazon_subscriptions.models import Interval, IntervalUnit, ListPriceType, SubscriptionStatus
 
 logger = logging.getLogger(__name__)
@@ -21,18 +17,22 @@ def normalize_space(text: str) -> str:
 
 
 class SubscriptionLocale:
-    """Texts and formats of the Subscribe & Save pages of one storefront.
+    """Texts and formats of the Subscribe & Save pages in one language.
 
-    A storefront is supported by a subclass that sets the class attributes and is registered in
-    :data:`amazon_subscriptions.locales.LOCALES_BY_TLD`.
+    A language is supported by a subclass that sets the class attributes. The currency is the storefront's, so one
+    subclass serves every storefront that shows its pages in that language, see
+    :func:`amazon_subscriptions.locales.get_locale`.
+
+    :param currency: ISO 4217 code of the storefront's currency.
+    :param currency_symbol: The symbol the storefront shows its prices with. It is removed from amounts, as is the
+        code.
     """
 
-    #: The Locale of amazon-orders for the storefront, used for full dates and month names.
-    AMAZON_LOCALE: ClassVar[type[Locale]]
-    #: ISO 4217 code of the storefront's currency.
-    CURRENCY: ClassVar[str]
-    #: IANA time zone of the storefront, in which the timestamps of delivery links are midnight.
-    TIMEZONE: ClassVar[str]
+    #: Month names and abbreviations, lower case.
+    MONTHS: ClassVar[dict[str, int]]
+    #: Patterns of a date, with ``{months}`` for the alternatives of :attr:`MONTHS`. Groups: ``day``, ``month``,
+    #: ``year`` (may be empty).
+    DATE_PATTERNS: ClassVar[list[str]]
 
     #: Text before the next delivery date of a subscription tile.
     NEXT_DELIVERY_PREFIX: ClassVar[str]
@@ -48,52 +48,51 @@ class SubscriptionLocale:
     #: Text before the change deadline of a delivery card.
     DEADLINE_PREFIX: ClassVar[str]
 
-    #: Quantity and interval, e.g. "3 Einheiten alle 2 Monate". Groups: quantity, every (optional), unit.
+    #: Quantity and interval, e.g. "3 units every 2 months". Groups: quantity, every (optional), unit.
     QUANTITY_INTERVAL_RE: ClassVar[re.Pattern[str]]
     #: Unit words of intervals, lower case.
     INTERVAL_UNITS: ClassVar[dict[str, IntervalUnit]]
-    #: Discount of an item, e.g. "Spare 15 %". Group: percent.
+    #: Discount of an item, e.g. "Save 15%". Group: percent.
     DISCOUNT_PERCENT_RE: ClassVar[re.Pattern[str]]
-    #: Number of items of a delivery, e.g. "11 Artikel". Group: count.
+    #: Number of items of a delivery, e.g. "11 items". Group: count.
     ITEM_COUNT_RE: ClassVar[re.Pattern[str]]
-    #: Total savings of a delivery, e.g. "Ersparnis 25,32 €". Group: amount.
-    SAVINGS_RE: ClassVar[re.Pattern[str]]
+    #: Total savings of a delivery. Group: amount. ``None`` if not known yet.
+    SAVINGS_RE: ClassVar[re.Pattern[str] | None] = None
     #: Text stating that the maximum discount of a delivery is unlocked.
     MAX_DISCOUNT_UNLOCKED_TEXT: ClassVar[str]
     #: Item alerts stating that a backup product is sent instead of the subscribed one.
     SUBSTITUTE_ALERT_TEXTS: ClassVar[list[str]]
 
-    #: Unit price of a product page, e.g. "24,99 € pro l". Groups: amount, unit.
+    #: Unit price of a product page, e.g. "€24.99 per l". Groups: amount, unit.
     UNIT_PRICE_RE: ClassVar[re.Pattern[str]]
     #: Labels of the list price of a product page by the type they state, matched as prefix.
     LIST_PRICE_TYPES: ClassVar[dict[str, ListPriceType]]
-    #: Captions of the buybox rows with offers of other sellers.
+    #: Captions of the buybox rows with other offers of the product, e.g. of other sellers.
     ALTERNATIVE_OFFERS_CAPTIONS: ClassVar[list[str]]
-    #: Label of the entry of the product itself in a comparison widget, e.g. "Dieser Artikel:", matched as prefix.
+    #: Label of the entry of the product itself in a comparison widget, matched as prefix.
     THIS_ITEM_LABEL: ClassVar[str]
 
-    #: Amount pattern, e.g. "1.234,56". Groups: integer part, decimals (optional).
+    #: Amount pattern without currency, e.g. "1,234.56". Groups: integer part, decimals (optional).
     AMOUNT_RE: ClassVar[re.Pattern[str]]
     #: Thousands separator of :attr:`AMOUNT_RE`.
     THOUSANDS_SEPARATOR: ClassVar[str]
-    #: Texts around an amount that are not part of it, e.g. currency symbols.
-    AMOUNT_NOISE_RE: ClassVar[re.Pattern[str]]
 
-    def __init__(self) -> None:
-        self.amazon_locale = self.AMAZON_LOCALE()
-        self.months: Mapping[str, int] = self.amazon_locale.MONTHS
-        if not self.months:
-            raise SubscriptionsError(f"{self.AMAZON_LOCALE.__name__} of amazon-orders defines no month names.")
-        months = "|".join(sorted(map(re.escape, self.months), key=len, reverse=True))
-        self._date_re = re.compile(
-            r"(?<!\d)(\d{1,2})\.\s*(" + months + r")\.?(?![a-zäöü])(?:\s+(\d{4}))?(?!\d)", re.IGNORECASE
-        )
+    def __init__(self, currency: str, currency_symbol: str | None = None) -> None:
+        #: ISO 4217 code of the storefront's currency.
+        self.currency = currency
+        noise = sorted({currency, *([currency_symbol] if currency_symbol else [])}, key=len, reverse=True)
+        #: Texts around an amount that are not part of it: the currency's symbol and code.
+        self.amount_noise_re = re.compile("|".join(map(re.escape, noise)))
+        months = "|".join(sorted(map(re.escape, self.MONTHS), key=len, reverse=True))
+        self._date_res = [
+            re.compile(pattern.replace("{months}", months), re.IGNORECASE) for pattern in self.DATE_PATTERNS
+        ]
 
     def parse_amount(self, text: str | None) -> Decimal | None:
-        """Parse an amount such as ``1.234,56 €``. The text must contain nothing else."""
+        """Parse an amount such as ``€1,234.56``. The text must contain nothing else."""
         if not text:
             return None
-        value = normalize_space(self.AMOUNT_NOISE_RE.sub("", normalize_space(text))).replace(" ", "")
+        value = normalize_space(self.amount_noise_re.sub("", normalize_space(text))).replace(" ", "")
         match = self.AMOUNT_RE.fullmatch(value)
         if not match:
             logger.warning(f"Amount {text!r} was not recognized, so it was not parsed.")
@@ -105,29 +104,34 @@ class SubscriptionLocale:
             return None
 
     def parse_date_parts(self, text: str | None) -> DateParts | None:
-        """Parse the single date in a text such as ``Ankunft: Do., 1. Okt.``, with or without year."""
+        """Parse the single date in a text such as ``Arriving: Thu, 1 Oct``, with or without year."""
         if not text:
             return None
         text = normalize_space(text)
-        found = {
-            (int(day), self.months[month.lower()], int(year) if year else None)
-            for day, month, year in self._date_re.findall(text)
-        }
+        matches = sorted((m for date_re in self._date_res for m in date_re.finditer(text)), key=lambda m: m.start())
+        found: set[tuple[int, int, int | None]] = set()
+        end = 0
+        for match in matches:
+            # Patterns of both orders may match the same month, e.g. "Oct 12" in "5 Oct 12 units", the first wins
+            if match.start() < end:
+                continue
+            end = match.end()
+            year = int(match["year"]) if match["year"] else None
+            found.add((int(match["day"]), self.MONTHS[match["month"].lower()], year))
         if len(found) != 1:
             logger.warning(f"Date {text!r} has {'no' if not found else 'more than one'} date, so it was not parsed.")
             return None
         day, month, year = found.pop()
-        if year is not None:
-            # Full dates are parsed by amazon-orders, which validates them strictly
-            parsed: date | None = self.amazon_locale.parse_date(text)
-            return DateParts(parsed.day, parsed.month, parsed.year) if parsed else None
-        if not 1 <= day <= 31:
+        try:
+            # 2000 is a leap year, so 29 Feb without year is valid
+            date(year or 2000, month, day)
+        except ValueError:
             logger.warning(f"Date {text!r} is not a valid date, so it was not parsed.")
             return None
-        return DateParts(day, month)
+        return DateParts(day, month, year)
 
     def parse_quantity_interval(self, text: str | None, warn: bool = True) -> tuple[int, Interval] | None:
-        """Parse quantity and interval such as ``3 Einheiten alle 2 Monate``."""
+        """Parse quantity and interval such as ``3 units every 2 months``."""
         match = self.QUANTITY_INTERVAL_RE.fullmatch(normalize_space(text or ""))
         if not match:
             if text and warn:
@@ -145,11 +149,11 @@ class SubscriptionLocale:
         return int(match.group(1)) if match else None
 
     def parse_savings(self, text: str | None) -> Decimal | None:
-        match = self.SAVINGS_RE.search(normalize_space(text or ""))
+        match = self.SAVINGS_RE.search(normalize_space(text or "")) if self.SAVINGS_RE else None
         return self.parse_amount(match.group(1)) if match else None
 
     def parse_unit_price(self, text: str | None) -> tuple[Decimal, str] | None:
-        """Parse a unit price such as ``24,99 € pro l`` into amount and unit."""
+        """Parse a unit price such as ``€24.99 per l`` into amount and unit."""
         match = self.UNIT_PRICE_RE.fullmatch(normalize_space(html.unescape(text or "")))
         if not match:
             if text:

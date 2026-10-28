@@ -1,12 +1,40 @@
 from urllib.parse import urlparse
 
+from amazonorders.constants import Constants
+from amazonorders.region_data import REGION_SITES
+
 from amazon_subscriptions.exceptions import SubscriptionsError
 from amazon_subscriptions.locales.base import SubscriptionLocale
-from amazon_subscriptions.locales.de import DeSubscriptionLocale
+from amazon_subscriptions.locales.en import EnglishSubscriptionLocale
 
-#: The locale of each supported storefront, keyed by the TLD suffix that follows ``amazon.``.
-LOCALES_BY_TLD: dict[str, type[SubscriptionLocale]] = {
-    "de": DeSubscriptionLocale,
+#: ISO 4217 code of the currency of each Amazon site, keyed by the TLD suffix that follows ``amazon.``.
+#:
+#: amazon-orders only knows the symbol a site shows its prices with, and ``$`` alone does not tell US, Canadian and
+#: Australian dollars apart. The pages never show the code.
+SITE_CURRENCIES: dict[str, str] = {
+    "ae": "AED",
+    "ca": "CAD",
+    "co.jp": "JPY",
+    "co.uk": "GBP",
+    "co.za": "ZAR",
+    "com": "USD",
+    "com.au": "AUD",
+    "com.be": "EUR",
+    "com.br": "BRL",
+    "com.mx": "MXN",
+    "com.tr": "TRY",
+    "de": "EUR",
+    "eg": "EGP",
+    "es": "EUR",
+    "fr": "EUR",
+    "ie": "EUR",
+    "in": "INR",
+    "it": "EUR",
+    "nl": "EUR",
+    "pl": "PLN",
+    "sa": "SAR",
+    "se": "SEK",
+    "sg": "SGD",
 }
 
 
@@ -20,13 +48,21 @@ def tld_of(domain_or_url: str) -> str:
 
 
 def get_locale(domain_or_url: str) -> SubscriptionLocale:
-    """The locale of a storefront, given by domain (``amazon.de``) or base URL (``https://www.amazon.de``)."""
+    """The locale of a storefront, given by domain (``amazon.de``) or base URL (``https://www.amazon.de``).
+
+    Every storefront that offers its pages in English is supported, as amazon-orders requests them in English.
+
+    :raises SubscriptionsError: If the storefront is not known or offers no English pages.
+    """
     tld = tld_of(domain_or_url)
-    if tld not in LOCALES_BY_TLD:
+    site = REGION_SITES.get(tld)
+    if site is None or tld not in SITE_CURRENCIES:
+        raise SubscriptionsError(f"amazon.{tld} is not a known Amazon storefront.")
+    if not site.english_locale:
         raise SubscriptionsError(
-            f"amazon.{tld} is not supported yet, supported are: {', '.join('amazon.' + t for t in LOCALES_BY_TLD)}."
+            f"amazon.{tld} does not offer its pages in English, which is the only language supported."
         )
-    return LOCALES_BY_TLD[tld]()
+    return EnglishSubscriptionLocale(SITE_CURRENCIES[tld], Constants.region_currency_symbol(tld))
 
 
-__all__ = ["LOCALES_BY_TLD", "SubscriptionLocale", "get_locale", "tld_of"]
+__all__ = ["SITE_CURRENCIES", "EnglishSubscriptionLocale", "SubscriptionLocale", "get_locale", "tld_of"]

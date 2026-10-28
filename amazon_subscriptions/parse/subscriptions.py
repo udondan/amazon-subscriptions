@@ -58,7 +58,7 @@ def _parse_tile(tile: Tag, locale: SubscriptionLocale, today: date, page: str | 
         title=text_of(title_tag) or attr_of(image, "alt"),
         product_url=f"/dp/{asin}" if asin else None,
         image_url=attr_of(image, "src"),
-        currency=locale.CURRENCY,
+        currency=locale.currency,
     )
 
     status_texts = []

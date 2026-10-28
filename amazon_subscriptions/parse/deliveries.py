@@ -3,10 +3,9 @@
 import json
 import logging
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from urllib.parse import parse_qs, urlparse
-from zoneinfo import ZoneInfo
 
 from bs4 import Tag
 
@@ -65,9 +64,9 @@ def _parse_card(card: Tag, locale: SubscriptionLocale, page: str | None) -> Upco
     if arrival is None or not epoch_ms.isdigit():
         raise PageStructureError(f"Delivery card without arrival date or link: {url!r}", page)
 
-    # The timestamp is midnight of the storefront's time zone, so its UTC date may be the day before. It is only
-    # used to find the year of the rendered date.
-    reference = datetime.fromtimestamp(int(epoch_ms) / 1000, tz=timezone.utc).date()
+    # The timestamp is only used to find the year of the rendered date.
+    reference = _date_of_epoch_ms(epoch_ms)
+    assert reference is not None
     delivery_date = dates.resolve(arrival, lambda d, m: dates.nearest(d, m, reference))
     if delivery_date is None:
         raise PageStructureError(f"Delivery card with invalid arrival date: {url!r}", page)
@@ -78,7 +77,7 @@ def _parse_card(card: Tag, locale: SubscriptionLocale, page: str | None) -> Upco
         date=delivery_date,
         change_deadline=dates.resolve(deadline, lambda d, m: dates.last_on_or_before(d, m, delivery_date)),
         discount_tier=DiscountTier(item_count=images + int(more or 0) if images else None),
-        currency=locale.CURRENCY,
+        currency=locale.currency,
         delivery_bundle_id=next(iter(query.get("deliveryBundleId", [])), None),
         url=url,
     )
@@ -99,7 +98,7 @@ def parse_delivery_page(html: Html, locale: SubscriptionLocale, page: str | None
     parse_errors = []
     delivery_date = _parse_delivery_date(text_of(soup.select_one(selectors.DELIVERY_DATE)))
     if delivery_date is None:
-        delivery_date = _date_of_epoch_ms(_delivery_date_param(page), locale.TIMEZONE)
+        delivery_date = _date_of_epoch_ms(_delivery_date_param(page))
         if delivery_date is None:
             raise PageStructureError(
                 f"No delivery date found ({selectors.DELIVERY_DATE!r})", page, selector=selectors.DELIVERY_DATE
@@ -139,7 +138,7 @@ def parse_delivery_page(html: Html, locale: SubscriptionLocale, page: str | None
             savings=locale.parse_savings(savings_text),
         ),
         total=sum((p for p in prices if p is not None), Decimal("0")) if None not in prices else None,
-        currency=locale.CURRENCY,
+        currency=locale.currency,
         parse_errors=parse_errors,
     )
 
@@ -149,11 +148,16 @@ def _delivery_date_param(url: str | None) -> str:
     return (parse_qs(urlparse(url or "").query).get("deliveryDate") or [""])[0]
 
 
-def _date_of_epoch_ms(epoch_ms: str, time_zone: str) -> date | None:
-    """The date of a timestamp in milliseconds in the storefront's time zone, where it is midnight."""
+def _date_of_epoch_ms(epoch_ms: str) -> date | None:
+    """The date of a timestamp in milliseconds that is midnight in the storefront's time zone.
+
+    The time zone is not needed: midnight at a UTC offset between -12 h (exclusive) and +12 h, which covers every
+    Amazon storefront, is between noon of the day before and noon of the day in UTC. So 12 hours later it is on
+    the day in UTC.
+    """
     if not epoch_ms.isdigit():
         return None
-    return datetime.fromtimestamp(int(epoch_ms) / 1000, tz=ZoneInfo(time_zone)).date()
+    return (datetime.fromtimestamp(int(epoch_ms) / 1000, tz=timezone.utc) + timedelta(hours=12)).date()
 
 
 def _parse_delivery_date(text: str | None) -> date | None:

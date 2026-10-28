@@ -55,7 +55,9 @@ def cli(ctx: click.Context, domain: str | None, debug: bool, output_dir: str | N
             logging.getLogger(name).setLevel(logging.DEBUG)
             logging.getLogger(name).addHandler(handler)
 
-    data: dict[str, Any] = {}
+    # The pages are only read in English, which amazon-orders requests unless a language package is configured.
+    # This only applies to this run, the configuration file is not changed.
+    data: dict[str, Any] = {"language_package": None}
     if domain:
         data["domain"] = domain
     if output_dir:

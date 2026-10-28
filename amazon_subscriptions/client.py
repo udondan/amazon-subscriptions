@@ -17,6 +17,8 @@ from datetime import date, datetime
 from typing import TypeVar
 from urllib.parse import urlencode, urljoin, urlparse
 
+from amazonorders.constants import Constants
+from amazonorders.region_data import REGION_SITES
 from amazonorders.session import AmazonSession
 from bs4 import BeautifulSoup
 from requests import RequestException, Response
@@ -27,7 +29,7 @@ from amazon_subscriptions.exceptions import (
     SessionExpiredError,
     SubscriptionsError,
 )
-from amazon_subscriptions.locales import get_locale
+from amazon_subscriptions.locales import get_locale, tld_of
 from amazon_subscriptions.locales.base import SubscriptionLocale
 from amazon_subscriptions.models import DiscountTier, ParseError, Subscription, UpcomingDelivery
 from amazon_subscriptions.parse import (
@@ -72,6 +74,9 @@ READ_ONLY_URLS = [
 READ_ONLY_NEXT_URLS = re.compile(
     r"/api/marketplaces/[A-Z0-9]+/customer/replenishment/(?:subscriptions|fulfillment/deliveries)\?[^/]*"
 )
+
+#: The language segment that links of pages in another language than the storefront's start with, e.g. ``/-/en``.
+LANGUAGE_PREFIX = re.compile(r"^(https://[^/]+)/-/[a-z]{2}(?:_[a-z]{2})?(?=/)", re.IGNORECASE)
 
 #: Headers of the browser's XHR that loads the next page of a widget, on top of the session's base headers.
 ACP_HEADERS = {
@@ -138,11 +143,26 @@ class SubscriptionsClient:
         self.failed_dir = failed_dir or default_failed_dir()
         self.base_url: str = session.config.constants.BASE_URL.rstrip("/")
         self.locale: SubscriptionLocale = get_locale(self.base_url)
+        self._check_english(session.config.constants)
         #: The errors of all pages that could not be loaded or read, empty if the result is complete.
         self.errors: list[ParseError] = []
         self._pages: _Pages | None = None
         #: The captcha of a delivery or product page, after which no further such pages are requested.
         self._captcha: CaptchaError | None = None
+
+    def _check_english(self, constants: Constants) -> None:
+        """Check that amazon-orders requests the pages in English, the only language they are read in.
+
+        :raises SubscriptionsError: If a ``language_package`` or ``constants_class`` requests another language.
+        """
+        site = REGION_SITES[tld_of(self.base_url)]
+        if site.language_cookie and constants.REQUEST_COOKIES.get(site.language_cookie) != site.english_locale:
+            raise SubscriptionsError(
+                f"amazon-orders is configured to request the pages of {self.base_url} in another language than "
+                f"English (cookie {site.language_cookie}={constants.REQUEST_COOKIES.get(site.language_cookie)!r}). "
+                "Remove the language_package or constants_class from its configuration, only English pages can be "
+                "read."
+            )
 
     def get_subscriptions(self) -> list[Subscription]:
         """All subscriptions, with their next delivery and its price if Amazon shows it."""
@@ -460,4 +480,6 @@ class SubscriptionsClient:
         return path
 
     def _absolute(self, url: str) -> str:
-        return urljoin(self.base_url + "/", url)
+        """The absolute URL of a link, without the language prefix of English pages (``/-/en/auto-deliveries``),
+        as the language cookie already requests them in English."""
+        return LANGUAGE_PREFIX.sub(r"\1", urljoin(self.base_url + "/", url), count=1)

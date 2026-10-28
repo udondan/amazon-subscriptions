@@ -2,8 +2,9 @@
 
 Read Amazon Subscribe & Save subscriptions and upcoming deliveries as JSON. Strictly read-only.
 
-Built on [amazon-orders](https://github.com/udondan/amazon-orders), which handles login and the session. Supported
-so far: amazon.de.
+Built on [amazon-orders](https://github.com/alexdlaird/amazon-orders), which handles login and the session, and
+requests every page in English, whatever language the account is set to. Every Amazon site that offers its pages in
+English is supported; so far it is tested with amazon.de. See [Other sites](#other-sites).
 
 ## Installation
 
@@ -21,9 +22,6 @@ uv sync
 
 The installation includes amazon-orders; its CLI is not needed.
 
-There is no package on PyPI yet: the amazon.de support of amazon-orders is not released yet, so it is required from a
-commit of a fork, and PyPI does not accept dependencies like that.
-
 ## Usage
 
 ```sh
@@ -37,9 +35,16 @@ amazon-subscriptions check-session
 amazon-subscriptions logout
 ```
 
-`login`, `logout` and `check-session` are the commands of amazon-orders. The session is stored in
-`~/.config/amazonorders/cookies.json` and shared with amazon-orders. Credentials are only asked for by `login` and
-never stored; the other commands never log in by themselves.
+`login`, `logout` and `check-session` are the commands of amazon-orders. Each Amazon site has its own session, stored
+in `~/.config/amazonorders/cookies.<site>.json` (e.g. `cookies.amazon.de.json`, for amazon.com `cookies.json`) and
+shared with amazon-orders. A session that older versions of amazon-orders stored in `cookies.json` for another site is
+still used. Credentials are only asked for by `login` and never stored; the other commands never log in by themselves.
+`login` signs out of the site's stored session first, so it always starts a new one. `login --browser` signs in
+through a browser window instead, which needs the `browser` extra of amazon-orders. `check-session --verify` asks
+Amazon whether it still accepts the session.
+
+A `language_package` configured for amazon-orders is ignored, as the pages are only read in English. The configuration
+file is not changed.
 
 Both `list` and `upcoming` load the same pages, about 3 requests plus one per upcoming delivery: `list` needs the
 delivery pages for the prices of the next delivery. `list --with-prices` loads the product page of every subscription
@@ -84,7 +89,7 @@ Every received page that could not be read is saved to `~/.cache/amazon-subscrip
 path is printed to stderr and is in `html_path` of the error:
 
 ```text
-Error: No delivery date found, it was taken from the URL (page: https://www.amazon.de/auto-deliveries/?…), page saved to ~/.cache/amazon-subscriptions/failed/20260924-220012_delivery-2026-10-01_2.html
+Error: No delivery date found, it was taken from the URL (page: https://www.amazon.de/auto-deliveries/?…), page saved to ~/.cache/amazon-subscriptions/failed/20261021-220012_delivery-2026-11-01_2.html
 ```
 
 The pages written with `--debug` and to the failed pages directory contain your subscriptions, addresses and more.
@@ -92,7 +97,7 @@ Keep them private.
 
 ## JSON
 
-- Dates are ISO 8601 (`2026-10-01`).
+- Dates are ISO 8601 (`2026-11-01`).
 - Amounts are decimal strings (`"12.34"`), in the currency of the ISO 4217 code in `currency`.
 - Values Amazon does not show are `null`.
 - Every subscription and delivery has `parse_errors`, the pages of it that could not be read (see
@@ -100,10 +105,10 @@ Keep them private.
 
 ```json
 {
-  "url": "https://www.amazon.de/auto-deliveries/?…&deliveryDate=1790805600000&…",
+  "url": "https://www.amazon.de/auto-deliveries/?…&deliveryDate=1793487600000&…",
   "message": "No delivery date found, it was taken from the URL",
   "selector": "[data-testid='ddp-atd-delivery-date']",
-  "html_path": "/Users/…/.cache/amazon-subscriptions/failed/20260924-220012_delivery-2026-10-01_2.html"
+  "html_path": "/Users/…/.cache/amazon-subscriptions/failed/20261021-220012_delivery-2026-11-01_2.html"
 }
 ```
 
@@ -123,21 +128,21 @@ A list of subscriptions:
   {
     "subscription_id": "…",
     "asin": "B0TEST0001",
-    "title": "Testartikel 01",
+    "title": "Product 01",
     "product_url": "https://www.amazon.de/dp/B0TEST0001",
     "image_url": "https://m.media-amazon.com/images/I/….jpg",
     "quantity": 1,
     "interval": {"every": 2, "unit": "month"},
-    "next_delivery_date": "2026-10-01",
+    "next_delivery_date": "2026-11-01",
     "status": "active",
-    "price": null,
-    "list_price": null,
-    "list_price_type": null,
-    "list_price_source": null,
+    "price": "8.69",
+    "list_price": "11.99",
+    "list_price_type": "rrp",
+    "list_price_source": "buybox",
     "discount_percent": 15,
-    "subscription_price": "12.34",
-    "unit_price": null,
-    "unit_price_unit": null,
+    "subscription_price": "7.39",
+    "unit_price": "57.93",
+    "unit_price_unit": "l",
     "alternative_offer": null,
     "currency": "EUR",
     "raw_status_text": null,
@@ -152,10 +157,10 @@ A list of subscriptions:
 | `status` | `active`, `paused`, `unavailable` (a backup product is sent instead), `skipped` or `unknown`. |
 | `discount_percent`, `subscription_price` | Discount and price of the whole quantity in the next delivery. Only set if that delivery shows prices, usually only the next one. |
 | `price`, `list_price` | Regular (one-time purchase) price of one unit in the buybox of the product page, and the strike-through price shown for it. Only read with `--with-prices`, `null` if the product is not available or the page shows no list price. Prices of other variants, sponsored products and recommendations on the page are never used. |
-| `list_price_type` | What `list_price` is, by its label: `uvp` (recommended retail price, „UVP“), `lowest_30d` (lowest price in the last 30 days) or `was` (previous price, „Statt“). `null` without `list_price`. |
-| `list_price_source` | Where `list_price` was read: `buybox` (price block of the buybox, any type), `widget` (the entry of this product, „Dieser Artikel“, in a comparison widget such as „Kundinnen und Kunden kauften auch“, only `uvp`) or `alternative_offer` (price block of an alternative offer of the same product, only `uvp`). Tried in this order. |
-| `unit_price`, `unit_price_unit` | Price per unit of measure of `price` and its unit as Amazon shows it, e.g. `"24.99"` and `"l"`, `"kg"` or `"Stück"`. Only read with `--with-prices`. |
-| `alternative_offer` | The cheapest offer of another seller for the same product („Alternative Angebote“), or `null`: `{"price": "5.45", "unit_price": "1.36", "unit_price_unit": "Stück", "seller": "…", "seller_id": "A1B2C3D4E5F6G7", "subscribable": false}`. `seller` is the seller name as the offer shows it, `Amazon` if Amazon sells it, or `null` if the page does not show a name. `seller_id` is the merchant ID from the link to the seller profile, `null` if Amazon sells the offer or the page has no such link. These offers cannot be subscribed to, so `subscribable` is always `false`. Only read with `--with-prices`. |
+| `list_price_type` | What `list_price` is, by its label: `rrp` (recommended retail price, "RRP"), `lowest_30d` (lowest price in the last 30 days, see [Limitations](#limitations)) or `was` (previous price, "Was"). `null` without `list_price`. |
+| `list_price_source` | Where `list_price` was read: `buybox` (price block of the buybox, any type), `widget` (the entry of this product, "This item:", in a comparison widget, only `rrp`) or `alternative_offer` (price block of an alternative offer of the same product, only `rrp`). Tried in this order. |
+| `unit_price`, `unit_price_unit` | Price per unit of measure of `price` and its unit as Amazon shows it, e.g. `"57.93"` and `"l"`, `"kg"` or `"count"`. Only read with `--with-prices`. |
+| `alternative_offer` | The cheapest other offer of the same product next to the buybox offer ("Another way to buy"), e.g. of another seller, or `null`: `{"price": "5.45", "unit_price": "1.36", "unit_price_unit": "count", "seller": "…", "seller_id": "A1B2C3D4E5F6G7", "subscribable": false}`. `seller` is the seller name as the offer shows it, `Amazon` if Amazon sells it, or `null` if the page does not show a name. `seller_id` is the merchant ID from the link to the seller profile, `null` if Amazon sells the offer or the page has no such link. These offers cannot be subscribed to, so `subscribable` is always `false`. Only read with `--with-prices`. |
 | `raw_status_text` | The status or alert text shown by Amazon, e.g. for a backup product. |
 | `parse_errors` | The errors of the product page (`--with-prices`) and of the page of the next delivery, if they could not be read. |
 
@@ -166,14 +171,14 @@ A list of deliveries:
 ```json
 [
   {
-    "date": "2026-10-01",
-    "change_deadline": "2026-09-26",
+    "date": "2026-11-01",
+    "change_deadline": "2026-10-27",
     "items": [
       {
-        "title": "Testartikel 01",
+        "title": "Product 01",
         "quantity": 1,
         "interval": {"every": 2, "unit": "month"},
-        "price": "12.34",
+        "price": "7.39",
         "discount_percent": 15,
         "alert_text": null,
         "substitute": false,
@@ -182,8 +187,8 @@ A list of deliveries:
         "substitute_asin": null
       }
     ],
-    "discount_tier": {"item_count": 11, "max_discount_unlocked": true, "savings": "12.34"},
-    "total": "150.19",
+    "discount_tier": {"item_count": 11, "max_discount_unlocked": true, "savings": "10.58"},
+    "total": "86.20",
     "currency": "EUR",
     "delivery_bundle_id": "…",
     "url": "https://www.amazon.de/auto-deliveries/?…",
@@ -199,6 +204,7 @@ A list of deliveries:
 | `items[].substitute` | `true` if a backup product is sent instead of the subscribed one; `alert_text` has Amazon's note. |
 | `items[].asin`, `items[].substitute_asin` | `asin` is always the subscribed product. If `substitute` is `true`, `title`, `price` and `discount_percent` are those of the backup product, and `substitute_asin` is its ASIN. It is read from the subscription's detail sheet and is `null` if that sheet names another backup product. |
 | `items[].subscription_id` | The subscription of the item. Delivery pages do not link items to subscriptions, so they are matched by title, quantity and interval; `null` if there is no unique match. |
+| `discount_tier` | `item_count` is the number of items the discount is based on, `max_discount_unlocked` whether the delivery has the highest discount ("Max savings unlocked"), `savings` the amount saved as Amazon states it ("Saving €10.58"), usually only for the next delivery, otherwise `null`. |
 | `total` | Sum of the item prices, `null` if an item has no price. |
 | `parse_errors` | The errors of the delivery page, if it could not be read. `items` is then empty if the page had no items. |
 
@@ -239,33 +245,28 @@ change subscriptions (skip, pause, cancel, change quantity or interval, deliver 
 - Regular, list and unit prices are not shown on the Subscribe & Save pages. They are only read with `--with-prices`,
   from the product pages of the subscribed products, so a backup product sent instead has none. Loading 30 or more
   product pages at once can make Amazon answer with a captcha; the remaining prices then stay `null` with a warning.
-- The status texts of paused, skipped and unavailable subscriptions on the overview are not known yet, so they give
-  `unknown` and a warning. A subscription whose next delivery sends a backup product is `unavailable`.
+- Some English texts are not known yet, as no page with them has been captured. Until they are added to
+  `amazon_subscriptions/locales/en.py`:
+  - paused, skipped and unavailable subscriptions on the overview give `unknown` and a warning;
+  - `list_price_type` is never `lowest_30d`, as that label is not known. amazon.de no longer showed the lowest price
+    of the last 30 days on any product page checked, in German either.
+
+  Please contribute such pages, see [CONTRIBUTING.md](CONTRIBUTING.md).
 - Only the deliveries shown on the overview and its further pages are read, which Amazon limits to a few months.
 
-## Other storefronts
+## Other sites
 
-A storefront needs a subclass of `SubscriptionLocale` in `amazon_subscriptions/locales/`, registered in
-`LOCALES_BY_TLD`, and anonymized fixtures of its pages in `tests/fixtures/<tld>/`. The texts are taken from real pages;
-none are guessed.
+All Amazon sites that offer their pages in English use the same English locale: dates are read as `1 Oct` and as
+`Oct 1`, amounts as `12.34` and `1,234.56`, and the currency is the ISO 4217 code of the site (the pages only show its
+symbol, and `$` alone does not tell US, Canadian and Australian dollars apart). Sites without English pages, such as
+amazon.com.br, amazon.com.mx, amazon.com.tr and amazon.pl, are refused.
 
-For amazon.com this means:
+Only amazon.de has been tested so far. On other sites, the texts, the markup of the pages or the URLs may differ, so
+some values may be missing (with a warning or an `[incomplete]` result) or a page may not be read at all. Login,
+session and cookies are handled by amazon-orders for all sites.
 
-1. **Pages**: The overview (`/auto-deliveries`), one further page of each list (`--debug` writes them as
-   `paginate-*.html`) and the upcoming delivery pages, anonymized with `scripts/anonymize_fixtures.py`.
-2. **Month names**: `EnUS` of amazon-orders defines no `MONTHS` (it parses dates without a fixed format), so
-   `SubscriptionLocale` refuses it. amazon-orders would need English month names, as `DeDE` has.
-3. **Date order**: The date pattern of `SubscriptionLocale` expects day before month (`1. Okt.`). amazon.com writes
-   month before day (`Oct 1`), so the pattern has to become part of the locale.
-4. **Texts**: Everything in `DeSubscriptionLocale`: prefixes of next delivery, arrival and change deadline, quantity and
-   interval (`1 unit every 2 months`?), discount, item count, savings, maximum discount, backup product alerts, tile
-   links and status texts.
-5. **Amounts**: `USD`, `1,234.56` with `,` as thousands separator and `$` as noise.
-6. **Markup**: The selectors in `amazon_subscriptions/parse/selectors.py`, the widget paths and `page-type=RCXSubs` of
-   the further pages, and the URL allow-list in `amazon_subscriptions/client.py` are those of amazon.de. They are
-   probably shared by all storefronts, but must be checked against the fixtures.
-
-Login, session and cookies of amazon.com are already handled by amazon-orders.
+If you use another site, please contribute anonymized pages of it, so it can be tested.
+[CONTRIBUTING.md](CONTRIBUTING.md) explains step by step how to capture and anonymize them.
 
 ## Development
 
@@ -281,8 +282,7 @@ mise run test       # pytest
 Pull request titles and commits follow [Conventional Commits](https://www.conventionalcommits.org/); release-please
 creates the releases and the changelog from them.
 
-The test fixtures in `tests/fixtures` are anonymized pages of amazon.de, see `scripts/anonymize_fixtures.py`. The
-product page fixtures (`product*.html`) are reduced to their title and price blocks with
-`scripts/extract_product_fixture.py`. It also keeps the variants, the comparison widget and a sponsored product, as
-prices the parser must not read; save the rendered page of a browser, since the prices of the variants are only added
-by JavaScript.
+The test fixtures in `tests/fixtures/<tld>/` are anonymized English pages, see [CONTRIBUTING.md](CONTRIBUTING.md) for
+how to capture and anonymize them. The product page fixtures (`product*.html`) are reduced to their title and price
+blocks with `scripts/extract_product_fixture.py`. It also keeps the variants, the comparison widget and a sponsored
+product, as prices the parser must not read.
