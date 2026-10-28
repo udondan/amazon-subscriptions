@@ -53,7 +53,7 @@ PRODUCT_DISPLAY_PRICE = ".apex-pricetopay-value [aria-hidden]"
 PRODUCT_BASIS_PRICE = ".basisPrice"
 PRODUCT_BASIS_PRICE_LABEL = ".apex-basisprice-label"
 PRODUCT_BASIS_PRICE_VALUE = ".apex-basisprice-value .a-offscreen"
-# Comparison widgets ("Kundinnen und Kunden kauften auch"), whose entry of the product itself is labeled
+# Comparison widgets (e.g. "Compare with similar items"), whose entry of the product itself is labeled
 PRODUCT_WIDGET = "[data-feature-name^='sims']"
 PRODUCT_WIDGET_LABEL = ".a-text-bold"
 PRODUCT_WIDGET_ENTRY = "a-cardui"

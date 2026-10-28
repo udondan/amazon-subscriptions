@@ -3,9 +3,10 @@
   "extends": ["github>udondan/renovate-config"],
   "packageRules": [
     {
-      "description": "Pinned to a commit of the fork with amazon.de support; changed by hand until upstream releases it.",
+      "description": "amazon-orders is a range, so installations can share it with other packages. Updates within the range only change uv.lock.",
+      "matchManagers": ["pep621"],
       "matchPackageNames": ["amazon-orders"],
-      "enabled": false
+      "rangeStrategy": "update-lockfile"
     }
   ]
 }

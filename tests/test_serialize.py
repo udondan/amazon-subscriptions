@@ -33,7 +33,7 @@ def test_subscription() -> None:
 def test_delivery() -> None:
     delivery = UpcomingDelivery(
         date=date(2026, 10, 1),
-        items=[DeliveryItem(title="Testartikel 01", price=Decimal("1.99"))],
+        items=[DeliveryItem(title="Product 01", price=Decimal("1.99"))],
         total=Decimal("1.99"),
     )
     value = json.loads(to_json([delivery]))

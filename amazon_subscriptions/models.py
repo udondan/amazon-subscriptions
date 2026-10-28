@@ -22,11 +22,11 @@ class SubscriptionStatus(str, Enum):
 class ListPriceType(str, Enum):
     """What the list price of a product page is, by its label."""
 
-    #: Recommended retail price, "UVP" on amazon.de.
-    UVP = "uvp"
+    #: Recommended retail price, "RRP" on English pages.
+    RRP = "rrp"
     #: Lowest price of the last 30 days.
     LOWEST_30D = "lowest_30d"
-    #: A former price, "Statt" on amazon.de.
+    #: A former price, "Was" on English pages.
     WAS = "was"
 
 
@@ -35,7 +35,7 @@ class ListPriceSource(str, Enum):
 
     #: The price block of the offer in the buybox.
     BUYBOX = "buybox"
-    #: The entry of the product itself ("Dieser Artikel") in a comparison widget. Only recommended retail prices are
+    #: The entry of the product itself ("This item:") in a comparison widget. Only recommended retail prices are
     #: read from there, as the widget may show another offer than the buybox.
     WIDGET = "widget"
     #: The price block of an alternative offer of the same product. Only recommended retail prices are read from there.
@@ -102,7 +102,7 @@ class Subscription:
     subscription_price: Decimal | None = None
     #: Price per unit of measure of the regular price, e.g. per ``kg``. Only read with ``with_prices``.
     unit_price: Decimal | None = None
-    #: The unit of measure of ``unit_price`` as shown by Amazon, e.g. ``kg``, ``100 ml`` or ``Stück``.
+    #: The unit of measure of ``unit_price`` as shown by Amazon, e.g. ``kg``, ``100 ml`` or ``count``.
     unit_price_unit: str | None = None
     #: The cheapest other offer of the same product on the product page. Only read with ``with_prices``.
     alternative_offer: AlternativeOffer | None = None

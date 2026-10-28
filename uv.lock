@@ -8,8 +8,8 @@ resolution-markers = [
 
 [[package]]
 name = "amazon-orders"
-version = "4.6.0"
-source = { git = "https://github.com/udondan/amazon-orders?rev=b454bffa4d88b4953b05f74a31151d40119c29b4#b454bffa4d88b4953b05f74a31151d40119c29b4" }
+version = "5.2.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "click" },
@@ -18,6 +18,10 @@ dependencies = [
     { name = "python-dateutil" },
     { name = "pyyaml" },
     { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f6/eb/0ecfc42783474bfaae1eab68c886f1e4bf874d199823c477b16cde457f31/amazon_orders-5.2.0.tar.gz", hash = "sha256:6f7c3fa8b561cd38074a97f9938be3a5f1d2564bbb177eff313d1523c71457d0", size = 112201, upload-time = "2026-10-25T22:10:34.737Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0d/94/afe7b7ce5b9a5ba746bb45725aaeee35a5634c3a102c552b63d344b842b1/amazon_orders-5.2.0-py3-none-any.whl", hash = "sha256:a0c806089931d3b5cea2ebaeba723708c58fcbac75ba251c904d9d625bcb4950", size = 117822, upload-time = "2026-10-25T22:10:33.208Z" },
 ]
 
 [[package]]
@@ -41,7 +45,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "amazon-orders", git = "https://github.com/udondan/amazon-orders?rev=b454bffa4d88b4953b05f74a31151d40119c29b4" },
+    { name = "amazon-orders", specifier = ">=5.2.0,<6" },
     { name = "beautifulsoup4", specifier = "==4.15.0" },
     { name = "click", specifier = "==8.5.0" },
 ]

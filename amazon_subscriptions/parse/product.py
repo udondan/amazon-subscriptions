@@ -39,7 +39,7 @@ class ProductPrices:
     list_price_source: ListPriceSource | None = None
     #: Price per unit of measure of ``price``.
     unit_price: Decimal | None = None
-    #: Unit of measure of ``unit_price``, e.g. ``l`` or ``Stück``.
+    #: Unit of measure of ``unit_price``, e.g. ``l`` or ``count``.
     unit_price_unit: str | None = None
     #: The cheapest offer of another seller for the same product.
     alternative_offer: AlternativeOffer | None = None
@@ -137,7 +137,7 @@ def _display_list_price(
         amount = locale.parse_amount(text_of(basis.select_one(selectors.PRODUCT_BASIS_PRICE_VALUE)))
         if list_price_type is None or amount is None:
             continue
-        if source is ListPriceSource.BUYBOX or list_price_type is ListPriceType.UVP:
+        if source is ListPriceSource.BUYBOX or list_price_type is ListPriceType.RRP:
             return _ListPrice(amount, list_price_type, source)
     return None
 
@@ -158,10 +158,10 @@ def _widget_list_price(soup: BeautifulSoup, asin: str | None, locale: Subscripti
             continue
         for strike in entry.select(selectors.PRODUCT_WIDGET_STRIKE_PRICE):
             value = text_of(strike) or ""
-            if locale.list_price_type_of((text_of(strike.parent) or "").replace(value, "")) is ListPriceType.UVP:
+            if locale.list_price_type_of((text_of(strike.parent) or "").replace(value, "")) is ListPriceType.RRP:
                 amount = locale.parse_amount(value)
                 if amount is not None:
-                    return _ListPrice(amount, ListPriceType.UVP, ListPriceSource.WIDGET)
+                    return _ListPrice(amount, ListPriceType.RRP, ListPriceSource.WIDGET)
     return None
 
 
