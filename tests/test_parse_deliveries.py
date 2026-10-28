@@ -57,7 +57,7 @@ def test_delivery_1(delivery_1: UpcomingDelivery) -> None:
     assert len(delivery_1.items) == 11
     assert delivery_1.discount_tier.item_count == 11
     assert delivery_1.discount_tier.max_discount_unlocked is True
-    # The text of the savings amount is not known in English yet
+    # This delivery shows no savings amount
     assert delivery_1.discount_tier.savings is None
     assert delivery_1.currency == "EUR"
     assert [item.price for item in delivery_1.items if item.price is not None] == [
@@ -69,6 +69,15 @@ def test_delivery_1(delivery_1: UpcomingDelivery) -> None:
     ]
     # Not all items have a price yet
     assert delivery_1.total is None
+
+
+def test_delivery_savings(de: SubscriptionLocale) -> None:
+    # The next delivery shows the amount saved in the banner of its discount tier
+    html = read_fixture("de/delivery-1.html").replace(
+        "🥳 Max savings unlocked", "🥳 Saving €10.58 - Max savings unlocked"
+    )
+    tier = parse_delivery_page(html, de).discount_tier
+    assert (tier.savings, tier.max_discount_unlocked) == (Decimal("10.58"), True)
 
 
 def test_delivery_1_items(delivery_1: UpcomingDelivery) -> None:

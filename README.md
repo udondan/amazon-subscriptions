@@ -160,7 +160,7 @@ A list of subscriptions:
 | `list_price_type` | What `list_price` is, by its label: `rrp` (recommended retail price, "RRP"), `lowest_30d` (lowest price in the last 30 days, see [Limitations](#limitations)) or `was` (previous price, "Was"). `null` without `list_price`. |
 | `list_price_source` | Where `list_price` was read: `buybox` (price block of the buybox, any type), `widget` (the entry of this product, "This item:", in a comparison widget, only `rrp`) or `alternative_offer` (price block of an alternative offer of the same product, only `rrp`). Tried in this order. |
 | `unit_price`, `unit_price_unit` | Price per unit of measure of `price` and its unit as Amazon shows it, e.g. `"57.93"` and `"l"`, `"kg"` or `"count"`. Only read with `--with-prices`. |
-| `alternative_offer` | The cheapest offer of another seller for the same product, or `null` (see [Limitations](#limitations)): `{"price": "5.45", "unit_price": "1.36", "unit_price_unit": "count", "seller": "…", "seller_id": "A1B2C3D4E5F6G7", "subscribable": false}`. `seller` is the seller name as the offer shows it, `Amazon` if Amazon sells it, or `null` if the page does not show a name. `seller_id` is the merchant ID from the link to the seller profile, `null` if Amazon sells the offer or the page has no such link. These offers cannot be subscribed to, so `subscribable` is always `false`. Only read with `--with-prices`. |
+| `alternative_offer` | The cheapest other offer of the same product next to the buybox offer ("Another way to buy"), e.g. of another seller, or `null`: `{"price": "5.45", "unit_price": "1.36", "unit_price_unit": "count", "seller": "…", "seller_id": "A1B2C3D4E5F6G7", "subscribable": false}`. `seller` is the seller name as the offer shows it, `Amazon` if Amazon sells it, or `null` if the page does not show a name. `seller_id` is the merchant ID from the link to the seller profile, `null` if Amazon sells the offer or the page has no such link. These offers cannot be subscribed to, so `subscribable` is always `false`. Only read with `--with-prices`. |
 | `raw_status_text` | The status or alert text shown by Amazon, e.g. for a backup product. |
 | `parse_errors` | The errors of the product page (`--with-prices`) and of the page of the next delivery, if they could not be read. |
 
@@ -187,7 +187,7 @@ A list of deliveries:
         "substitute_asin": null
       }
     ],
-    "discount_tier": {"item_count": 11, "max_discount_unlocked": true, "savings": null},
+    "discount_tier": {"item_count": 11, "max_discount_unlocked": true, "savings": "10.58"},
     "total": "86.20",
     "currency": "EUR",
     "delivery_bundle_id": "…",
@@ -204,6 +204,7 @@ A list of deliveries:
 | `items[].substitute` | `true` if a backup product is sent instead of the subscribed one; `alert_text` has Amazon's note. |
 | `items[].asin`, `items[].substitute_asin` | `asin` is always the subscribed product. If `substitute` is `true`, `title`, `price` and `discount_percent` are those of the backup product, and `substitute_asin` is its ASIN. It is read from the subscription's detail sheet and is `null` if that sheet names another backup product. |
 | `items[].subscription_id` | The subscription of the item. Delivery pages do not link items to subscriptions, so they are matched by title, quantity and interval; `null` if there is no unique match. |
+| `discount_tier` | `item_count` is the number of items the discount is based on, `max_discount_unlocked` whether the delivery has the highest discount ("Max savings unlocked"), `savings` the amount saved as Amazon states it ("Saving €10.58"), usually only for the next delivery, otherwise `null`. |
 | `total` | Sum of the item prices, `null` if an item has no price. |
 | `parse_errors` | The errors of the delivery page, if it could not be read. `items` is then empty if the page had no items. |
 
@@ -247,9 +248,8 @@ change subscriptions (skip, pause, cancel, change quantity or interval, deliver 
 - Some English texts are not known yet, as no page with them has been captured. Until they are added to
   `amazon_subscriptions/locales/en.py`:
   - paused, skipped and unavailable subscriptions on the overview give `unknown` and a warning;
-  - `discount_tier.savings` is `null`;
-  - `list_price_type` is never `lowest_30d`, as that label is not known;
-  - `alternative_offer` is `null`, as the caption of the offers of other sellers is not known.
+  - `list_price_type` is never `lowest_30d`, as that label is not known. amazon.de no longer showed the lowest price
+    of the last 30 days on any product page checked, in German either.
 
   Please contribute such pages, see [CONTRIBUTING.md](CONTRIBUTING.md).
 - Only the deliveries shown on the overview and its further pages are read, which Amazon limits to a few months.

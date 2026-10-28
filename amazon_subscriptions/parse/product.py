@@ -41,7 +41,7 @@ class ProductPrices:
     unit_price: Decimal | None = None
     #: Unit of measure of ``unit_price``, e.g. ``l`` or ``count``.
     unit_price_unit: str | None = None
-    #: The cheapest offer of another seller for the same product.
+    #: The cheapest other offer of the product next to the buybox offer.
     alternative_offer: AlternativeOffer | None = None
 
 

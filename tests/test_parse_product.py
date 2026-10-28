@@ -5,7 +5,7 @@ import pytest
 
 from amazon_subscriptions.exceptions import CaptchaError
 from amazon_subscriptions.locales.base import SubscriptionLocale
-from amazon_subscriptions.models import ListPriceSource, ListPriceType
+from amazon_subscriptions.models import AlternativeOffer, ListPriceSource, ListPriceType
 from amazon_subscriptions.parse import ProductPrices, parse_product_page
 from amazon_subscriptions.serialize import to_json
 from tests.conftest import FIXTURES, read_fixture
@@ -97,6 +97,19 @@ def test_product(de: SubscriptionLocale) -> None:
     # The label "One-Time Price:" of the price display is no list price
     prices = parse_product_page(read_fixture("de/product.html"), de)
     assert prices == ProductPrices(price=Decimal("12.99"), unit_price=Decimal("133.92"), unit_price_unit="kg")
+
+
+def test_product_alternative_offer(de: SubscriptionLocale) -> None:
+    # The buybox accordion has a row "Another way to buy" with another offer of the product
+    prices = parse_product_page(read_fixture("de/product-alternative-offer.html"), de)
+    assert prices == ProductPrices(
+        price=Decimal("29.98"),
+        unit_price=Decimal("54.51"),
+        unit_price_unit="l",
+        alternative_offer=AlternativeOffer(
+            price=Decimal("32.47"), unit_price=Decimal("59.04"), unit_price_unit="l", seller="Amazon"
+        ),
+    )
 
 
 def test_product_single_offer(de: SubscriptionLocale) -> None:

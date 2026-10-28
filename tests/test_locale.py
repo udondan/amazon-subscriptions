@@ -136,8 +136,11 @@ def test_parse_delivery_texts(de: SubscriptionLocale) -> None:
     assert de.parse_discount_percent("Saving 5 %") == 5
     assert de.parse_item_count("11 items") == 11
     assert de.parse_item_count("1 item") == 1
-    # The text of the savings amount is not known yet
-    assert de.parse_savings("Max savings unlocked") is None
+    assert de.parse_savings("🥳 Saving €10.58 - Max savings unlocked") == Decimal("10.58")
+    assert de.parse_savings("Saving €1,234.56") == Decimal("1234.56")
+    assert de.parse_savings("🥳 Max savings unlocked") is None
+    # The discount of an item is no amount
+    assert de.parse_savings("Saving 15%") is None
 
 
 def test_status_of_unknown_text(de: SubscriptionLocale, caplog: pytest.LogCaptureFixture) -> None:
@@ -184,7 +187,8 @@ def test_list_price_type_of(de: SubscriptionLocale, label: str | None, expected:
 
 
 def test_is_alternative_offers_caption(de: SubscriptionLocale) -> None:
-    # No caption is known yet
+    assert de.is_alternative_offers_caption("Another way to buy")
+    assert de.is_alternative_offers_caption("  another way to buy ")
     assert not de.is_alternative_offers_caption("One-time purchase")
     assert not de.is_alternative_offers_caption(None)
 

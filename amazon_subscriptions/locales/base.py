@@ -67,7 +67,7 @@ class SubscriptionLocale:
     UNIT_PRICE_RE: ClassVar[re.Pattern[str]]
     #: Labels of the list price of a product page by the type they state, matched as prefix.
     LIST_PRICE_TYPES: ClassVar[dict[str, ListPriceType]]
-    #: Captions of the buybox rows with offers of other sellers.
+    #: Captions of the buybox rows with other offers of the product, e.g. of other sellers.
     ALTERNATIVE_OFFERS_CAPTIONS: ClassVar[list[str]]
     #: Label of the entry of the product itself in a comparison widget, matched as prefix.
     THIS_ITEM_LABEL: ClassVar[str]

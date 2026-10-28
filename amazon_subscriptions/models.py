@@ -63,7 +63,8 @@ class Interval:
 
 @dataclass(frozen=True)
 class AlternativeOffer:
-    """An offer of the same product by another seller, listed next to the buybox offer."""
+    """Another offer of the same product, listed next to the buybox offer ("Another way to buy"), e.g. of another
+    seller."""
 
     #: Price of a one-time purchase.
     price: Decimal

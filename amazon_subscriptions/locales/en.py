@@ -45,20 +45,20 @@ class EnglishSubscriptionLocale(SubscriptionLocale):
     }  # fmt: skip
     DISCOUNT_PERCENT_RE = re.compile(r"Saving (\d{1,2}) ?%", re.IGNORECASE)
     ITEM_COUNT_RE = re.compile(r"(\d+) items?\b")
-    # TODO: capture a delivery whose savings show an amount to fill this
-    SAVINGS_RE = None
+    # "Saving €10.58 - Max savings unlocked", not the "Saving 15%" of an item
+    SAVINGS_RE = re.compile(r"\bSaving (?!\d+ ?%)(.+?)(?: - |$)", re.IGNORECASE)
     MAX_DISCOUNT_UNLOCKED_TEXT = "Max savings unlocked"
     SUBSTITUTE_ALERT_TEXTS: ClassVar[list[str]] = ["Backup product will be shipped"]
 
     UNIT_PRICE_RE = re.compile(r"(.+?) per (.+)")
-    # TODO: capture the label of the lowest price of the last 30 days to add it
+    # TODO: capture the label of the lowest price of the last 30 days to add it. In October 2026, no product page of
+    # amazon.de showed it, in German either.
     LIST_PRICE_TYPES: ClassVar[dict[str, ListPriceType]] = {
         "RRP": ListPriceType.RRP,
         "Was": ListPriceType.WAS,
     }
-    # TODO: capture a buybox with offers of other sellers to fill this. "Get it faster" is a faster delivery of the
-    # same seller, not an alternative offer.
-    ALTERNATIVE_OFFERS_CAPTIONS: ClassVar[list[str]] = []
+    # "Get it faster" is a faster delivery of the same offer, not an alternative offer.
+    ALTERNATIVE_OFFERS_CAPTIONS: ClassVar[list[str]] = ["Another way to buy"]
     THIS_ITEM_LABEL = "This item:"
 
     AMOUNT_RE = re.compile(r"(-?(?:\d{1,3}(?:,\d{3})+|\d+))(?:\.(\d{1,2}))?")
