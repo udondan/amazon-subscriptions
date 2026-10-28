@@ -8,10 +8,23 @@ English is supported; so far it is tested with amazon.de. See [Other sites](#oth
 
 ## Installation
 
-Requires Python 3.10 or later. With [uv](https://docs.astral.sh/uv/):
+Requires Python 3.10 or later. Install the CLI from [PyPI](https://pypi.org/project/amazon-subscriptions/) with
+[uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install git+https://github.com/udondan/amazon-subscriptions
+uv tool install amazon-subscriptions
+```
+
+Or with [pipx](https://pipx.pypa.io/):
+
+```sh
+pipx install amazon-subscriptions
+```
+
+To use it as a [library](#library), add it to your project:
+
+```sh
+uv add amazon-subscriptions  # or: pip install amazon-subscriptions
 ```
 
 Or from a checkout, prefixing the commands below with `uv run`:
