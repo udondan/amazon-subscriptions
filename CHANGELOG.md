@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/udondan/amazon-subscriptions/compare/v1.0.1...v1.1.0) (2026-11-01)
+
+
+### Features
+
+* drop support for Python 3.10 ([#28](https://github.com/udondan/amazon-subscriptions/issues/28)) ([fb02fae](https://github.com/udondan/amazon-subscriptions/commit/fb02fae0056b17c39251f1c949449e22dfef5621))
+
+
+### Bug Fixes
+
+* **deps:** update certifi and pillow to patched versions ([#25](https://github.com/udondan/amazon-subscriptions/issues/25)) ([907956f](https://github.com/udondan/amazon-subscriptions/commit/907956f96158a162edc41abe1086d012823292b2))
+
 ## [1.0.1](https://github.com/udondan/amazon-subscriptions/compare/v1.0.0...v1.0.1) (2026-10-28)
 
 
