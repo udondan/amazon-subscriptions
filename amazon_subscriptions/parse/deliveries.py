@@ -3,7 +3,7 @@
 import json
 import logging
 import re
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from urllib.parse import parse_qs, urlparse
 
@@ -157,7 +157,7 @@ def _date_of_epoch_ms(epoch_ms: str) -> date | None:
     """
     if not epoch_ms.isdigit():
         return None
-    return (datetime.fromtimestamp(int(epoch_ms) / 1000, tz=timezone.utc) + timedelta(hours=12)).date()
+    return (datetime.fromtimestamp(int(epoch_ms) / 1000, tz=UTC) + timedelta(hours=12)).date()
 
 
 def _parse_delivery_date(text: str | None) -> date | None:

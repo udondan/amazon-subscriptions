@@ -8,7 +8,7 @@ English is supported; so far it is tested with amazon.de. See [Other sites](#oth
 
 ## Installation
 
-Requires Python 3.10 or later. Install the CLI from [PyPI](https://pypi.org/project/amazon-subscriptions/) with
+Requires Python 3.11 or later. Install the CLI from [PyPI](https://pypi.org/project/amazon-subscriptions/) with
 [uv](https://docs.astral.sh/uv/):
 
 ```sh

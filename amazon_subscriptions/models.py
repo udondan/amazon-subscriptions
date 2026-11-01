@@ -1,16 +1,16 @@
 import datetime
 from dataclasses import dataclass, field
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 
-class IntervalUnit(str, Enum):
+class IntervalUnit(StrEnum):
     DAY = "day"
     WEEK = "week"
     MONTH = "month"
 
 
-class SubscriptionStatus(str, Enum):
+class SubscriptionStatus(StrEnum):
     ACTIVE = "active"
     PAUSED = "paused"
     #: The subscribed product is not available, e.g. a backup product is sent instead.
@@ -19,7 +19,7 @@ class SubscriptionStatus(str, Enum):
     UNKNOWN = "unknown"
 
 
-class ListPriceType(str, Enum):
+class ListPriceType(StrEnum):
     """What the list price of a product page is, by its label."""
 
     #: Recommended retail price, "RRP" on English pages.
@@ -30,7 +30,7 @@ class ListPriceType(str, Enum):
     WAS = "was"
 
 
-class ListPriceSource(str, Enum):
+class ListPriceSource(StrEnum):
     """The block of a product page the list price was read from."""
 
     #: The price block of the offer in the buybox.
