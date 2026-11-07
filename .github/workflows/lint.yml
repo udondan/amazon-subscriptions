@@ -2,13 +2,13 @@
 name: Lint
 
 on:
-  # Called by mr-test.yml, so its required job covers the linters too.
+  # Called by test.yml, so its required job covers the linters too.
   workflow_call:
 
 permissions:
   contents: read
 
-# Python is linted in mr-test.yml. Each linter here is its own job so a failure names the file type. The linters'
+# Python is linted in test.yml. Each linter here is its own job so a failure names the file type. The linters'
 # versions are in mise.toml, where Renovate updates them.
 jobs:
   markdown:

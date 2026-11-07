@@ -1,4 +1,4 @@
-# Used by Qlty Cloud and by the qlty job of mr-test.yml. The plugins are the ones `qlty init` enables for this
+# Used by Qlty Cloud and by the qlty job of test.yml. The plugins are the ones `qlty init` enables for this
 # repository. All of them and the code smells block, so a finding fails the job.
 #
 # Guide: https://qlty.sh/d/config, reference: https://qlty.sh/d/qlty-toml

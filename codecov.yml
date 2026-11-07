@@ -1,6 +1,6 @@
 ---
 codecov:
-  # The Coverage job of the MR Test workflow waits for the Codecov checks, so
+  # The Coverage job of the Test workflow waits for the Codecov checks, so
   # Codecov must not wait for the other checks in turn.
   require_ci_to_pass: false
   notify:
