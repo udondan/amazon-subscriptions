@@ -1,6 +1,6 @@
 [tools]
 python = "3.14"
-uv = "0.12.18"
+uv = "0.13.7"
 # Linters of lint.yml. Each lint job installs only the ones it runs.
 actionlint = "1.7.12"
 lychee = "0.24.2"
