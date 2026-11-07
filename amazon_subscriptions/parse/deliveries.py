@@ -61,12 +61,11 @@ def _parse_card(card: Tag, locale: SubscriptionLocale, page: str | None) -> Upco
             arrival = locale.parse_date_parts(text)
         elif text and text.startswith(locale.DEADLINE_PREFIX):
             deadline = locale.parse_date_parts(text)
-    if arrival is None or not epoch_ms.isdigit():
-        raise PageStructureError(f"Delivery card without arrival date or link: {url!r}", page)
-
     # The timestamp is only used to find the year of the rendered date.
     reference = _date_of_epoch_ms(epoch_ms)
-    assert reference is not None
+    if arrival is None or reference is None:
+        raise PageStructureError(f"Delivery card without arrival date or link: {url!r}", page)
+
     delivery_date = dates.resolve(arrival, lambda d, m: dates.nearest(d, m, reference))
     if delivery_date is None:
         raise PageStructureError(f"Delivery card with invalid arrival date: {url!r}", page)

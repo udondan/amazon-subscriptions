@@ -16,6 +16,10 @@ def to_json_value(value: Any) -> Any:
         return [to_json_value(v) for v in value]
     if isinstance(value, dict):
         return {str(k): to_json_value(v) for k, v in value.items()}
+    return _scalar_value(value)
+
+
+def _scalar_value(value: Any) -> Any:
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, Decimal):
