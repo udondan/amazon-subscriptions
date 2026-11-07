@@ -6,7 +6,12 @@ import pytest
 from amazon_subscriptions.exceptions import PageStructureError
 from amazon_subscriptions.locales.base import SubscriptionLocale
 from amazon_subscriptions.models import Interval, IntervalUnit, ParseError, UpcomingDelivery
-from amazon_subscriptions.parse import parse_deliveries_next_url, parse_delivery_cards, parse_delivery_page
+from amazon_subscriptions.parse import (
+    merge_delivery_card,
+    parse_deliveries_next_url,
+    parse_delivery_cards,
+    parse_delivery_page,
+)
 from amazon_subscriptions.parse.deliveries import _date_of_epoch_ms
 from tests.conftest import (
     DE_DELIVERY_1_EPOCH,
@@ -15,6 +20,9 @@ from tests.conftest import (
     read_fixture,
     subscriptions_page_2,
 )
+
+#: The arrival date of the first delivery card of the landing fixture
+DE_CARD_ARRIVAL = "Arriving Sun, 1 Nov"
 
 
 @pytest.fixture(scope="module")
@@ -38,6 +46,28 @@ def test_delivery_cards(de: SubscriptionLocale) -> None:
         assert card.delivery_bundle_id
         assert card.url and "deliveryDate=" in card.url
         assert card.currency == "EUR"
+
+
+@pytest.mark.parametrize(
+    ("arrival", "message"),
+    # No year around the card's timestamp in November 2026 has a 29 February
+    [("Sun, 1 Nov", "without arrival date"), ("Arriving Sun, 29 Feb", "invalid arrival date")],
+)
+def test_delivery_card_without_valid_arrival_date(de: SubscriptionLocale, arrival: str, message: str) -> None:
+    landing = read_fixture("de/landing.html")
+    assert landing.count(DE_CARD_ARRIVAL) == 1
+    with pytest.raises(PageStructureError, match=message):
+        parse_delivery_cards(landing.replace(DE_CARD_ARRIVAL, arrival), de)
+
+
+def test_merge_delivery_card_keeps_the_item_count_of_the_card(de: SubscriptionLocale) -> None:
+    [card, _] = parse_delivery_cards(read_fixture("de/landing.html"), de)
+    assert card.url
+    delivery = UpcomingDelivery(date=card.date)
+    merged = merge_delivery_card(card, delivery, card.url, [])
+    assert merged is delivery
+    assert merged.discount_tier.item_count == 11
+    assert (merged.change_deadline, merged.url) == (card.change_deadline, card.url)
 
 
 def test_deliveries_next_url() -> None:
