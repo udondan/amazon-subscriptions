@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -15,7 +16,7 @@ from amazon_subscriptions.exceptions import (
     SessionExpiredError,
     SubscriptionsError,
 )
-from amazon_subscriptions.models import ListPriceSource, ListPriceType
+from amazon_subscriptions.models import ListPriceSource, ListPriceType, Subscription, UpcomingDelivery
 from amazon_subscriptions.parse import parse_acp_widget, selectors
 from tests.conftest import (
     DE_BASE_URL,
@@ -27,6 +28,8 @@ from tests.conftest import (
     DE_SUBSCRIPTIONS_NEXT_URL,
     DE_SUBSCRIPTIONS_PAGINATE_URL,
     DE_TODAY,
+    HTML_PARSER,
+    TEXT_HTML,
     delivery_1_without_date,
     make_session,
     read_fixture,
@@ -41,10 +44,22 @@ from tests.conftest import (
 )
 
 DELIVERIES = [(date(2026, 11, 1), 11, None), (date(2026, 12, 1), 17, None)]
+SIGN_IN_URL = f"{DE_BASE_URL}/ap/signin"
 
 
 def make_client(tmp_path: Path, **kwargs: object) -> SubscriptionsClient:
     return SubscriptionsClient(make_session(tmp_path, **kwargs), today=DE_TODAY)
+
+
+def redirect_to_sign_in(mock: responses.RequestsMock, url: str | re.Pattern[str], replace: bool = False) -> None:
+    """Answer the requests of the URL with a redirect to the sign-in page, as Amazon does once the session expired."""
+    location = {"Location": f"{SIGN_IN_URL}?openid.return_to=x"}
+    redirect = responses.Response(responses.GET, url, status=302, headers=location)
+    if replace:
+        mock.replace(redirect)
+    else:
+        mock.add(redirect)
+    mock.get(SIGN_IN_URL, body="<html><body>Sign in</body></html>")
 
 
 def test_loads_subscriptions_and_deliveries(tmp_path: Path, mock: responses.RequestsMock) -> None:
@@ -356,7 +371,7 @@ def test_next_page_of_deliveries(
     landing = read_fixture("de/landing.html")
     # A further card like the second one of the landing page, a month later
     fragment = (
-        str(BeautifulSoup(landing, "html.parser").select(selectors.DELIVERY_CARD)[1])
+        str(BeautifulSoup(landing, HTML_PARSER).select(selectors.DELIVERY_CARD)[1])
         .replace("Arriving Tue, 1 Dec", "Arriving Fri, 1 Jan")
         .replace("Last day to edit Thu, 26 Nov", "Last day to edit Sun, 27 Dec")
         .replace("1796079600000", "1798758000000")
@@ -413,6 +428,61 @@ def test_debug_writes_next_pages(tmp_path: Path, mock: responses.RequestsMock) -
     assert written == read_fixture("de/deliveries-page-2.html")
 
 
+def test_debug_keeps_the_files_of_earlier_runs(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    register_subscriptions_next_page(mock)
+    for _ in range(2):
+        make_client(tmp_path, debug=True).get_subscriptions()
+
+    written = (tmp_path / "output" / "paginate-subscriptions_1.html").read_text(encoding="utf-8")
+    assert written == subscriptions_page_2()
+
+
+def test_repeated_subscriptions(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    # The next page of subscriptions repeats the first subscription of the landing page
+    tile = BeautifulSoup(read_fixture("de/landing.html"), HTML_PARSER).select(selectors.SUBSCRIPTION_TILE)[0]
+    mock.post(DE_SUBSCRIPTIONS_PAGINATE_URL, body=f"<div>{tile}</div>".encode(), content_type=TEXT_HTML)
+    register_de_pages(mock, landing=with_subscriptions_next_page(read_fixture("de/landing.html")))
+
+    with pytest.raises(PageStructureError, match="repeat subscriptions"):
+        make_client(tmp_path).get_subscriptions()
+
+
+def test_more_than_max_pages(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    register_subscriptions_next_page(mock)
+    client = SubscriptionsClient(make_session(tmp_path), today=DE_TODAY, max_pages=0)
+
+    with pytest.raises(SubscriptionsError, match="More than 0 pages of subscriptions"):
+        client.get_subscriptions()
+
+
+def test_delivery_card_without_link(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    with pytest.raises(PageStructureError, match="without link"):
+        make_client(tmp_path)._load_deliveries([UpcomingDelivery(date=date(2026, 11, 1))])
+    assert len(mock.calls) == 0
+
+
+def test_no_product_page_of_a_subscription_without_asin(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    subscription = Subscription(subscription_id="S1")
+    make_client(tmp_path)._load_prices([subscription])
+
+    assert len(mock.calls) == 0
+    assert subscription.parse_errors == []
+
+
+def test_failed_page_is_not_saved_to_an_unusable_directory(
+    tmp_path: Path, mock: responses.RequestsMock, failed_dir: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    failed_dir.parent.mkdir(parents=True)
+    failed_dir.write_text("", encoding="utf-8")
+    register_broken_delivery_1(mock)
+    register_de_pages(mock)
+    deliveries = make_client(tmp_path).get_upcoming_deliveries()
+
+    [error] = deliveries[0].parse_errors
+    assert error.html_path is None
+    assert "was not saved" in caplog.text
+
+
 def test_without_login_sends_no_request(tmp_path: Path, mock: responses.RequestsMock) -> None:
     with pytest.raises(SessionExpiredError, match="no stored Amazon session"):
         make_client(tmp_path, logged_in=False).get_subscriptions()
@@ -420,12 +490,28 @@ def test_without_login_sends_no_request(tmp_path: Path, mock: responses.Requests
 
 
 def test_redirect_to_sign_in(tmp_path: Path, mock: responses.RequestsMock) -> None:
-    sign_in = f"{DE_BASE_URL}/ap/signin"
-    mock.get(DE_LANDING_URL, status=302, headers={"Location": f"{sign_in}?openid.return_to=x"})
-    mock.get(sign_in, body="<html><body>Sign in</body></html>")
+    redirect_to_sign_in(mock, DE_LANDING_URL)
 
     with pytest.raises(SessionExpiredError, match="sign-in page"):
         make_client(tmp_path).get_subscriptions()
+
+
+def test_redirect_to_sign_in_on_a_delivery_page(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    # An expired session is not retried
+    redirect_to_sign_in(mock, DE_DELIVERY_1_URL)
+    register_de_pages(mock)
+
+    with pytest.raises(SessionExpiredError, match="sign-in page"):
+        make_client(tmp_path).get_upcoming_deliveries()
+
+
+@pytest.mark.usefixtures("substitute")
+def test_redirect_to_sign_in_on_the_detail_sheet(tmp_path: Path, mock: responses.RequestsMock) -> None:
+    redirect_to_sign_in(mock, DE_DETAIL_URL, replace=True)
+    register_de_pages(mock)
+
+    with pytest.raises(SessionExpiredError, match="sign-in page"):
+        make_client(tmp_path).get_upcoming_deliveries()
 
 
 def test_sign_in_form(tmp_path: Path, mock: responses.RequestsMock) -> None:

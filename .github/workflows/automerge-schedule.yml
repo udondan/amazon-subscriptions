@@ -15,11 +15,12 @@ jobs:
       - name: Enable auto-merge on release-please PR
         env:
           GH_TOKEN: ${{ secrets.OVERRIDE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           PRS=$(gh pr list \
-            --repo "${{ github.repository }}" \
             --label "autorelease: pending" \
-            --base "${{ github.event.repository.default_branch }}" \
+            --base "$BASE_BRANCH" \
             --state open \
             --json number)
 
@@ -35,9 +36,8 @@ jobs:
           if [ -n "$PR" ]; then
             # Auto-merge waits for the branch to be up to date with main, and release-please leaves it
             # behind when the new commits don't change the release notes.
-            gh pr update-branch "$PR" --repo "${{ github.repository }}"
-            gh pr merge "$PR" --auto --squash --delete-branch \
-              --repo "${{ github.repository }}"
+            gh pr update-branch "$PR"
+            gh pr merge "$PR" --auto --squash --delete-branch
             echo "Auto-merge enabled on PR #$PR"
           else
             echo "No open release-please PR found"

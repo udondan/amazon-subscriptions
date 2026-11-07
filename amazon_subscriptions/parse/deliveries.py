@@ -61,12 +61,11 @@ def _parse_card(card: Tag, locale: SubscriptionLocale, page: str | None) -> Upco
             arrival = locale.parse_date_parts(text)
         elif text and text.startswith(locale.DEADLINE_PREFIX):
             deadline = locale.parse_date_parts(text)
-    if arrival is None or not epoch_ms.isdigit():
-        raise PageStructureError(f"Delivery card without arrival date or link: {url!r}", page)
-
     # The timestamp is only used to find the year of the rendered date.
     reference = _date_of_epoch_ms(epoch_ms)
-    assert reference is not None
+    if arrival is None or reference is None:
+        raise PageStructureError(f"Delivery card without arrival date or link: {url!r}", page)
+
     delivery_date = dates.resolve(arrival, lambda d, m: dates.nearest(d, m, reference))
     if delivery_date is None:
         raise PageStructureError(f"Delivery card with invalid arrival date: {url!r}", page)
@@ -197,3 +196,32 @@ def _parse_item(tag: Tag, locale: SubscriptionLocale) -> DeliveryItem:
         alert_text=alert,
         substitute=bool(alert and locale.is_substitute_alert(alert)),
     )
+
+
+def merge_delivery_card(
+    card: UpcomingDelivery, delivery: UpcomingDelivery | None, url: str, errors: list[ParseError]
+) -> UpcomingDelivery:
+    """The delivery of a delivery page with the card's link and bundle, or the card if its page failed.
+
+    :param url: The absolute URL of the delivery page.
+    :param errors: The errors of loading the delivery page, set as the delivery's ``parse_errors``.
+    """
+    if delivery is None:
+        return UpcomingDelivery(
+            date=card.date,
+            change_deadline=card.change_deadline,
+            discount_tier=DiscountTier(item_count=card.discount_tier.item_count),
+            currency=card.currency,
+            delivery_bundle_id=card.delivery_bundle_id,
+            url=url,
+            parse_errors=errors,
+        )
+    delivery.parse_errors = errors
+    if delivery.date != card.date:
+        logger.warning(f"The delivery card shows {card.date}, but its page shows {delivery.date}.")
+    if delivery.discount_tier.item_count is None:
+        delivery.discount_tier.item_count = card.discount_tier.item_count
+    delivery.change_deadline = delivery.change_deadline or card.change_deadline
+    delivery.delivery_bundle_id = card.delivery_bundle_id
+    delivery.url = url
+    return delivery

@@ -17,6 +17,7 @@ import logging
 from collections.abc import Callable, Sequence
 
 from amazon_subscriptions.models import DeliveryItem, Subscription, SubscriptionStatus, UpcomingDelivery
+from amazon_subscriptions.parse.detail import BackupItem
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +99,25 @@ def match_deliveries(subscriptions: Sequence[Subscription], deliveries: Sequence
     for delivery in deliveries:
         match_delivery(delivery, subscriptions)
     apply_next_delivery(subscriptions, deliveries)
+
+
+def apply_delivery_errors(subscriptions: Sequence[Subscription], deliveries: Sequence[UpcomingDelivery]) -> None:
+    """Add the errors of each delivery to the subscriptions due on its date, as their next delivery, and so their
+    price, may be incomplete."""
+    for delivery in deliveries:
+        for subscription in subscriptions:
+            if delivery.parse_errors and subscription.next_delivery_date == delivery.date:
+                subscription.parse_errors += delivery.parse_errors
+
+
+def set_substitute_asin(
+    item: DeliveryItem, backup: BackupItem | None, subscription: Subscription, delivery: UpcomingDelivery
+) -> None:
+    """Set the ASIN of the backup product of the subscription to the item, if its title matches the item's."""
+    if backup is not None and titles_match(backup.title, item.title):
+        item.substitute_asin = backup.asin
+    else:
+        logger.warning(
+            f"The backup product of subscription {subscription.subscription_id} is not the item "
+            f"{item.title!r} of {delivery.date}, so its ASIN is not known."
+        )

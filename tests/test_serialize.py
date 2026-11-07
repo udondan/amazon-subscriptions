@@ -44,3 +44,7 @@ def test_delivery() -> None:
 
 def test_keeps_umlauts() -> None:
     assert to_json(DeliveryItem(title="Müsli"), indent=None).startswith('{"title": "Müsli"')
+
+
+def test_dict() -> None:
+    assert to_json_value({1: Decimal("1.99"), "date": date(2026, 10, 1)}) == {"1": "1.99", "date": "2026-10-01"}

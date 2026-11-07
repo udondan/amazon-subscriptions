@@ -30,7 +30,7 @@ class EnglishSubscriptionLocale(SubscriptionLocale):
 
     NEXT_DELIVERY_PREFIX = "Next delivery:"
     TILE_ACTION_TEXTS: ClassVar[list[str]] = ["Edit or cancel"]
-    # TODO: capture tiles of paused and unavailable subscriptions to fill this
+    # TODO(#41): capture tiles of paused and unavailable subscriptions to fill this
     STATUS_TEXTS: ClassVar[dict[str, SubscriptionStatus]] = {}
     ARRIVAL_PREFIX = "Arriving"
     DEADLINE_PREFIX = "Last day to edit"
@@ -46,13 +46,13 @@ class EnglishSubscriptionLocale(SubscriptionLocale):
     DISCOUNT_PERCENT_RE = re.compile(r"Saving (\d{1,2}) ?%", re.IGNORECASE)
     ITEM_COUNT_RE = re.compile(r"(\d+) items?\b")
     # "Saving €10.58 - Max savings unlocked", not the "Saving 15%" of an item
-    SAVINGS_RE = re.compile(r"\bSaving (?!\d+ ?%)(.+?)(?: - |$)", re.IGNORECASE)
+    SAVINGS_RE = re.compile(r"\bSaving (?!\d+ ?%)((?:(?! - ).)+)", re.IGNORECASE)
     MAX_DISCOUNT_UNLOCKED_TEXT = "Max savings unlocked"
     SUBSTITUTE_ALERT_TEXTS: ClassVar[list[str]] = ["Backup product will be shipped"]
 
     UNIT_PRICE_RE = re.compile(r"(.+?) per (.+)")
-    # TODO: capture the label of the lowest price of the last 30 days to add it. In October 2026, no product page of
-    # amazon.de showed it, in German either.
+    # TODO(#42): capture the label of the lowest price of the last 30 days to add it. In October 2026, no product page
+    # of amazon.de showed it, in German either.
     LIST_PRICE_TYPES: ClassVar[dict[str, ListPriceType]] = {
         "RRP": ListPriceType.RRP,
         "Was": ListPriceType.WAS,

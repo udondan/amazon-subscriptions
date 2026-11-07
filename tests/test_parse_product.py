@@ -2,13 +2,15 @@ import re
 from decimal import Decimal
 
 import pytest
+from bs4 import BeautifulSoup
 
 from amazon_subscriptions.exceptions import CaptchaError
 from amazon_subscriptions.locales.base import SubscriptionLocale
 from amazon_subscriptions.models import AlternativeOffer, ListPriceSource, ListPriceType
 from amazon_subscriptions.parse import ProductPrices, parse_product_page
+from amazon_subscriptions.parse.widget import widget_rrp
 from amazon_subscriptions.serialize import to_json
-from tests.conftest import FIXTURES, read_fixture
+from tests.conftest import FIXTURES, HTML_PARSER, read_fixture
 
 
 def display_label(label: str) -> str:
@@ -91,6 +93,23 @@ def test_product_other_list_price_of_the_widget(de: SubscriptionLocale) -> None:
     html = read_fixture("de/product-was.html").replace(display_label("Was:"), display_label("Formerly:"))
     prices = parse_product_page(html, de)
     assert (prices.price, prices.list_price, prices.list_price_source) == (Decimal("6.13"), None, None)
+
+
+def test_product_widget_entry_of_another_item(de: SubscriptionLocale) -> None:
+    # Only the entry "This item:" is the product itself
+    html = (
+        read_fixture("de/product-was.html")
+        .replace(display_label("Was:"), display_label("Formerly:"))
+        .replace(WIDGET_LABEL, "<span>RRP:</span>")
+        .replace("This item: ", "Similar item: ")
+    )
+    prices = parse_product_page(html, de)
+    assert (prices.list_price, prices.list_price_source) == (None, None)
+
+
+def test_widget_rrp_without_asin(de: SubscriptionLocale) -> None:
+    soup = BeautifulSoup(read_fixture("de/product-was.html"), HTML_PARSER)
+    assert widget_rrp(soup, None, de) is None
 
 
 def test_product(de: SubscriptionLocale) -> None:

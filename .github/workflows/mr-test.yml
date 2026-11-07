@@ -107,10 +107,44 @@ jobs:
   lint:
     uses: ./.github/workflows/lint.yml
 
+  # The linters and code smells of Qlty Cloud, configured in .qlty/qlty.toml. On pull requests, only smells introduced
+  # compared to main fail the job.
+  qlty:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install qlty
+        uses: qltysh/qlty-action/install@ebcd284bf32e36a030afe15f1e136c7be08b9506 # v2.5.0
+
+      - name: Lint via qlty plugins
+        run: qlty check --all
+
+      - name: Report code smells
+        if: github.event_name != 'pull_request'
+        run: qlty smells --all --no-snippets
+
+      - name: Report new code smells
+        if: github.event_name == 'pull_request'
+        run: qlty smells --upstream origin/main --no-snippets
+
+      - name: Fail on new code smells
+        if: github.event_name == 'pull_request'
+        run: |
+          count=$(qlty smells --upstream origin/main --json --quiet 2>/dev/null | jq length)
+          if [ "$count" -gt 0 ]; then
+            echo "::error::qlty found $count new code smell(s) compared to main"
+            exit 1
+          fi
+
   # One status check for the ruleset, whatever jobs are added later.
   required:
     runs-on: ubuntu-latest
-    needs: [test, coverage, build, lint]
+    needs: [test, coverage, build, lint, qlty]
     if: always()
     steps:
       - name: Check result

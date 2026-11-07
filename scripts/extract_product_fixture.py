@@ -30,14 +30,16 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
-from bs4 import BeautifulSoup, Comment, Tag
+from bs4 import BeautifulSoup, Tag
+from fixture_html import SELLER_ID_RE, append, hide_titles, replace_text, shell
 from privacy_scan import remove_link_titles, remove_session_ids, report
 
-from amazon_subscriptions.locales import SITE_CURRENCIES, get_locale
-from amazon_subscriptions.parse import parse_product_page
+from amazon_subscriptions.locales import get_locale
+from amazon_subscriptions.parse import parse_product_page, selectors
 
+HTML_PARSER = "html.parser"
 #: Blocks kept as they are
-KEEP = ["#productTitle", "#availability"]
+KEEP = [selectors.PRODUCT_TITLE, "#availability"]
 #: Blocks of the buybox offers, kept inside an empty copy of their accordion row
 OFFER_ROW = "#buyBoxAccordion > [id^='newAccordionRow'], #buyBoxAccordion > #snsAccordionRowMiddle"
 OFFER_ROW_KEEP = ["#newAccordionCaption_feature_div", "#corePrice_feature_div", "#merchantInfoFeature_feature_div"]
@@ -50,25 +52,11 @@ SELLER_NAMES = [
 ]
 #: Texts of the seller elements that are no seller names, kept as they are
 NOT_SELLER_NAMES = {"Amazon"}
-SELLER_ID_RE = re.compile(r"(?<=[?&]seller=)[A-Z0-9]+")
 #: Price displays of the offers, kept inside an empty copy of their wrapper, which hides all but the selected one
 PRICE_DISPLAY = "#corePriceDisplay_desktop_feature_div"
 #: Blocks with prices of other products
 FOREIGN = ["#twister_feature_div li[data-asin]", "[data-feature-name='sims-productBundle']"]
 SPONSORED = "[id^='sp_detail_'][data-asin]"
-#: Texts of other products at least this long are taken as titles or descriptions and replaced
-MIN_TITLE_LENGTH = 25
-#: An amount next to a currency sign or code; amounts in titles ("2.5 kg") stand next to a unit
-_CURRENCY = rf"(?:[$£¥₠-⃏]|\b(?:{'|'.join(sorted(set(SITE_CURRENCIES.values())))})\b)"
-PRICE_LIKE_RE = re.compile(rf"{_CURRENCY}\s?\d|\d\s?{_CURRENCY}")
-THIS_ITEM_LABEL = get_locale("amazon.de").THIS_ITEM_LABEL
-#: Attributes with IDs of offers, merchants, ads or sessions, or with data not needed
-DROP_ATTRIBUTES = re.compile(
-    r"data-csa-c-(?:id|merchant-id|offer-id|session-id)|data-a-state|k-.*|data-components|data-atc-click-urls"
-    r"|data-price-totals|data-a-dynamic-image|src|srcset|value|action|data-ad-.*|data-a-modal|.*pixelurl|data-adfeedbackdetails"
-)
-#: Classes with request IDs
-DROP_CLASSES = re.compile(r"(?:pd_rd_\w+|pf_rd_\w+|content-id)-.*")
 ASIN_RE = re.compile(r"(?<![A-Z0-9])B0[0-9A-Z]{8}(?![A-Z0-9])")
 CANONICAL_ASIN_RE = re.compile(r"/dp/([A-Z0-9]{10})")
 #: The --debug output names product pages after the requested ASIN, e.g. B0XXXXXXXX_0.html
@@ -107,18 +95,26 @@ def extract(raw_html: str, number: int, asin_map: dict[str, str], requested: str
     ``requested`` is the ASIN the page was requested with, which the --debug output names the file after. Amazon may
     answer with the page of another variant, whose ASIN is not in the map.
     """
-    soup = BeautifulSoup(raw_html, "html.parser")
+    soup = BeautifulSoup(raw_html, HTML_PARSER)
     canonical = soup.select_one("link[rel=canonical]")
     canonical_url = str(canonical.get("href", "")) if canonical else ""
-    asin = CANONICAL_ASIN_RE.search(canonical_url)
-    fake_asin = next((asin_map[a] for a in (requested, asin.group(1) if asin else None) if a in asin_map), "")
-    fake_asin = fake_asin or f"B0TESTP{number:03}"
-    title = soup.select_one("#productTitle")
+    found = CANONICAL_ASIN_RE.search(canonical_url)
+    asin = found.group(1) if found else None
+    fake_asin = next((asin_map[a] for a in (requested, asin) if a in asin_map), "") or f"B0TESTP{number:03}"
+    title = soup.select_one(selectors.PRODUCT_TITLE)
     seller_names = (tag.get_text(strip=True) for selector in SELLER_NAMES for tag in soup.select(selector))
     sellers = list(dict.fromkeys(name for name in seller_names if name and name not in NOT_SELLER_NAMES))
 
-    body = BeautifulSoup("<html><body></body></html>", "html.parser")
-    assert body.body is not None
+    body = _reduce(soup, canonical_url, fake_asin)
+    _replace_names(body, title, sellers, number)
+    return _replace_ids(body.decode(formatter="html5"), asin, fake_asin), fake_asin
+
+
+def _reduce(soup: BeautifulSoup, canonical_url: str, fake_asin: str) -> BeautifulSoup:
+    """A page with only the blocks the parser reads, moved out of ``soup``."""
+    body = BeautifulSoup("<html><body></body></html>", HTML_PARSER)
+    if body.body is None:
+        raise ValueError("The empty page has no body")
     if canonical_url:
         # Only the site and the fake ASIN are kept, the summary reads the site from it
         site = urlparse(canonical_url)
@@ -127,54 +123,56 @@ def extract(raw_html: str, number: int, asin_map: dict[str, str], requested: str
         )
         body.body.append(link)
     for selector in KEEP:
-        _append(body.body, soup.select_one(selector))
+        append(body.body, soup.select_one(selector))
     for display in soup.select(PRICE_DISPLAY):
         wrapper = display.find_parent(id=re.compile(r"^apex_desktop_"))
-        _append(body.body, _shell(body, wrapper, display) if wrapper else display)
+        append(body.body, shell(body, wrapper, display) if wrapper else display)
     for row in soup.select(OFFER_ROW):
         # A row has a collapsed and an expanded merchant info with the same id
         parts = [part for selector in OFFER_ROW_KEEP for part in row.select(selector)]
-        _append(body.body, _shell(body, row, *parts))
+        append(body.body, shell(body, row, *parts))
     # The offers of the rows were moved above, so these are the ones outside an accordion
     for offer in soup.select(OFFER):
-        _append(body.body, offer)
+        append(body.body, offer)
+    _append_foreign(body.body, soup)
+    return body
+
+
+def _append_foreign(parent: Tag, soup: BeautifulSoup) -> None:
+    """Append the blocks with prices of other products, without their titles."""
     foreign = [part for selector in FOREIGN for part in soup.select(selector)]
     foreign.append(next((t for t in soup.select(SPONSORED) if t.find(class_="a-text-price")), None))
     titles: dict[str, str] = {}
     for part in foreign:
         if part is not None:
-            _hide_titles(part, titles)
-        _append(body.body, part)
+            hide_titles(part, titles)
+        append(parent, part)
 
+
+def _replace_names(body: BeautifulSoup, title: Tag | None, sellers: list[str], number: int) -> None:
+    """Replace the product title and the seller names."""
     # Replaced in the tree, as the decoded page writes some characters as entities, e.g. "&amp;" for "&"
-    kept_title = body.select_one("#productTitle")
+    kept_title = body.select_one(selectors.PRODUCT_TITLE)
     if kept_title is not None:
         kept_title.string = f"Product page {number:02}"
     if title is not None:
-        _replace_text(body, title.get_text(strip=True), f"Product page {number:02}")
+        replace_text(body, title.get_text(strip=True), f"Product page {number:02}")
     for i, seller in enumerate(sellers, 1):
-        _replace_text(body, seller, f"Test seller {i:02}")
-    html = body.decode(formatter="html5")
+        replace_text(body, seller, f"Test seller {i:02}")
+
+
+def _replace_ids(html: str, asin: str | None, fake_asin: str) -> str:
+    """Replace the seller IDs and ASINs, and remove the session IDs."""
     # Seller IDs are only kept in links, whose other query parameters are removed
     seller_ids: dict[str, str] = {}
     html = SELLER_ID_RE.sub(lambda m: seller_ids.setdefault(m.group(0), f"A0TESTSELLER{len(seller_ids) + 1:02}"), html)
     html = remove_session_ids(remove_link_titles(html))
     if asin:
-        html = html.replace(asin.group(1), fake_asin)
+        html = html.replace(asin, fake_asin)
     # Seeded with the fake page ASIN, which matches the pattern too
     fake_asins = {fake_asin: fake_asin}
     html = ASIN_RE.sub(lambda m: fake_asins.setdefault(m.group(0), f"B0TESTX{len(fake_asins):03}"), html)
-    return re.sub(r"\n\s*\n+", "\n", html) + "\n", fake_asin
-
-
-def _replace_text(soup: BeautifulSoup, text: str, replacement: str) -> None:
-    """Replace ``text`` in all texts and attribute values of ``soup``."""
-    for node in soup.find_all(string=lambda s: text in s):
-        node.replace_with(str(node).replace(text, replacement))
-    for tag in soup.find_all(True):
-        for name, value in tag.attrs.items():
-            if isinstance(value, str) and text in value:
-                tag[name] = value.replace(text, replacement)
+    return re.sub(r"\n\s*\n+", "\n", html) + "\n"
 
 
 def _summary(html: str) -> str:
@@ -194,55 +192,6 @@ def _summary(html: str) -> str:
     if prices.alternative_offer is not None:
         parts.append("alternative offer")
     return ", ".join(parts)
-
-
-def _hide_titles(part: Tag, titles: dict[str, str]) -> None:
-    """Replace the titles and descriptions of other products in ``part``, which tell what was subscribed.
-
-    Texts with a price or the "This item" label of a comparison widget are kept, the parser reads them.
-    """
-
-    def hidden(text: str) -> str | None:
-        if len(text.strip()) < MIN_TITLE_LENGTH or PRICE_LIKE_RE.search(text) or THIS_ITEM_LABEL in text:
-            return None
-        return titles.setdefault(text.strip(), f"Other product {len(titles) + 1:02}")
-
-    for node in part.find_all(string=True):
-        if not isinstance(node, Comment) and (replacement := hidden(str(node))):
-            node.replace_with(replacement)
-    for tag in [part, *part.find_all(True)]:
-        for name in ("title", "aria-label", "alt"):
-            if isinstance(tag.get(name), str) and (replacement := hidden(str(tag[name]))):
-                tag[name] = replacement
-
-
-def _shell(body: BeautifulSoup, tag: Tag, *children: Tag) -> Tag:
-    """An empty copy of ``tag`` with only its id, class and style, holding ``children``."""
-    shell = body.new_tag(tag.name, attrs={k: v for k, v in tag.attrs.items() if k in ("id", "class", "style")})
-    for child in children:
-        shell.append(child)
-    return shell
-
-
-def _append(parent: Tag, part: Tag | None) -> None:
-    if part is None:
-        return
-    for tag in part.find_all(["style", "script", "noscript", "img", "input", "svg"]):
-        tag.decompose()
-    for comment in part.find_all(string=lambda s: isinstance(s, Comment)):
-        comment.extract()
-    for tag in [part, *part.find_all(True)]:
-        for name in [n for n in tag.attrs if DROP_ATTRIBUTES.fullmatch(n)]:
-            del tag[name]
-        if isinstance(tag.get("class"), list):
-            tag["class"] = [c for c in tag["class"] if not DROP_CLASSES.fullmatch(c)]
-        if tag.get("href"):
-            # Paths keep the ASIN of a link, queries only hold tracking IDs and the seller ID
-            href = str(tag["href"])
-            seller_id = SELLER_ID_RE.search(href)
-            query = f"?seller={seller_id.group(0)}" if seller_id else ""
-            tag["href"] = re.sub(r"/ref=[^/?]*|\?.*", "", href) + query
-    parent.append(part)
 
 
 if __name__ == "__main__":

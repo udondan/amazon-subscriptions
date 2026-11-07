@@ -18,7 +18,7 @@ Usage:
 import argparse
 import re
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import NamedTuple
 
@@ -119,23 +119,28 @@ def scan(html: str) -> list[Finding]:
     return list(findings.values())
 
 
+#: Per kind of finding, the values that are no personal data, given the value, the whole match and the text before
+_NOT_PERSONAL: dict[str, Callable[[str, str, str], bool]] = {
+    "customer ID": lambda value, whole, before: (
+        value in PUBLIC_IDS
+        or not any(c.isdigit() for c in value[1:])
+        or re.search(r"promotionId=$", before, re.IGNORECASE) is not None
+    ),
+    "name": lambda value, whole, before: value.split()[0] in NOT_NAMES,
+    "order or session number": lambda value, whole, before: set(value) <= {"0", "-"},
+    # A year before a word, or the fake card digits before a word
+    "postcode and town": lambda value, whole, before: re.match(r"(?:19|20)\d\d\b|1234\b", whole) is not None,
+}
+
+
 def _ignored(kind: str, value: str, whole: str, before: str) -> bool:
-    if any(fake in whole for fake in FAKE_VALUES) or "TEST" in value or "example." in value:
-        return True
-    if kind == "customer ID":
-        return (
-            value in PUBLIC_IDS
-            or not any(c.isdigit() for c in value[1:])
-            or re.search(r"promotionId=$", before, re.IGNORECASE) is not None
-        )
-    if kind == "name":
-        return value.split()[0] in NOT_NAMES
-    if kind == "order or session number":
-        return set(value) <= {"0", "-"}
-    if kind == "postcode and town":
-        # A year before a word, or the fake card digits before a word
-        return re.match(r"(?:19|20)\d\d\b|1234\b", whole) is not None
-    return False
+    not_personal = _NOT_PERSONAL.get(kind)
+    return (
+        any(fake in whole for fake in FAKE_VALUES)
+        or "TEST" in value
+        or "example." in value
+        or (not_personal is not None and not_personal(value, whole, before))
+    )
 
 
 def report(path: str | Path, html: str | None = None) -> int:
