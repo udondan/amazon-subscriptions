@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.1.1](https://github.com/udondan/amazon-subscriptions/compare/v1.1.0...v1.1.1) (2026-11-07)
+
+
+### Dependencies
+
+* **deps:** lock file maintenance ([#39](https://github.com/udondan/amazon-subscriptions/issues/39)) ([eb41e0a](https://github.com/udondan/amazon-subscriptions/commit/eb41e0ac102f89fc51a9485c54bdbc1965858523))
+* **deps:** update davidanson/markdownlint-cli2-action action to v25 ([#37](https://github.com/udondan/amazon-subscriptions/issues/37)) ([0509026](https://github.com/udondan/amazon-subscriptions/commit/0509026d4d28619c4fc22d1bb0f488f406a698f4))
+* **deps:** update dependency amazon-orders to v5.2.1 ([#29](https://github.com/udondan/amazon-subscriptions/issues/29)) ([8721acd](https://github.com/udondan/amazon-subscriptions/commit/8721acd6376b1e17349afb4ab86fd8bf000f7853))
+* **deps:** update dependency mypy to v2.4.1 ([#32](https://github.com/udondan/amazon-subscriptions/issues/32)) ([c2e8b67](https://github.com/udondan/amazon-subscriptions/commit/c2e8b67c08564efd0d3e5f149f2a055be7d45870))
+* **deps:** update dependency pytest to v9.2.0 ([#33](https://github.com/udondan/amazon-subscriptions/issues/33)) ([1672bde](https://github.com/udondan/amazon-subscriptions/commit/1672bdef3cbf5caf3e3140acdbb83fe04a1b5414))
+* **deps:** update dependency python to v3.15.2 ([#34](https://github.com/udondan/amazon-subscriptions/issues/34)) ([16dffc5](https://github.com/udondan/amazon-subscriptions/commit/16dffc5af67a6ecb2c7cdbe615bcbbc4314a760f))
+* **deps:** update dependency ruff to v0.17.3 ([#35](https://github.com/udondan/amazon-subscriptions/issues/35)) ([4ef0450](https://github.com/udondan/amazon-subscriptions/commit/4ef0450bb97715995032f0eb2476edbfc2b3eb25))
+* **deps:** update dependency types-requests to v2.33.0.20261030 ([#30](https://github.com/udondan/amazon-subscriptions/issues/30)) ([0b057d3](https://github.com/udondan/amazon-subscriptions/commit/0b057d309d9e505d48b97139433d2e0d1575d1d2))
+* **deps:** update dependency uv to v0.13.7 ([#36](https://github.com/udondan/amazon-subscriptions/issues/36)) ([ab8b9bb](https://github.com/udondan/amazon-subscriptions/commit/ab8b9bbaddd7a972ec0c73d01a4d136ba5a3952f))
+* **deps:** update jdx/mise-action action to v5 ([#38](https://github.com/udondan/amazon-subscriptions/issues/38)) ([6aecf1b](https://github.com/udondan/amazon-subscriptions/commit/6aecf1b34ab607f13a4034584d8d64bd80b37719))
+* **deps:** update pypa/gh-action-pypi-publish action to v1.14.3 ([#31](https://github.com/udondan/amazon-subscriptions/issues/31)) ([b54c7eb](https://github.com/udondan/amazon-subscriptions/commit/b54c7eb24e5336a46608d9e536c5726e52b75278))
+
+
+### Documentation
+
+* add README badges ([#44](https://github.com/udondan/amazon-subscriptions/issues/44)) ([203f230](https://github.com/udondan/amazon-subscriptions/commit/203f230c11a52200dc12dd53245d93d29f97b8c9))
+
 ## [1.1.0](https://github.com/udondan/amazon-subscriptions/compare/v1.0.1...v1.1.0) (2026-11-01)
 
 
