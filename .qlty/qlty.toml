@@ -48,6 +48,11 @@ test_patterns = [
 [smells]
 mode = "block"
 
+# Counts self, and functions with this many parameters are reported. SubscriptionsClient.__init__ takes the session
+# and five options as keyword parameters, which are its public API. Smells cannot be ignored per file.
+[smells.function_parameters]
+threshold = 7
+
 [[source]]
 name = "default"
 default = true
