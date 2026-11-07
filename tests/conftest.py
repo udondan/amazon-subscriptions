@@ -62,7 +62,7 @@ def de() -> SubscriptionLocale:
 def failed_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Save the pages that could not be read below ``tmp_path`` and retry them without waiting."""
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
-    monkeypatch.setattr("amazon_subscriptions.client.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("amazon_subscriptions.pages.time.sleep", lambda seconds: None)
     return tmp_path / "cache" / "amazon-subscriptions" / "failed"
 
 

@@ -197,3 +197,32 @@ def _parse_item(tag: Tag, locale: SubscriptionLocale) -> DeliveryItem:
         alert_text=alert,
         substitute=bool(alert and locale.is_substitute_alert(alert)),
     )
+
+
+def merge_delivery_card(
+    card: UpcomingDelivery, delivery: UpcomingDelivery | None, url: str, errors: list[ParseError]
+) -> UpcomingDelivery:
+    """The delivery of a delivery page with the card's link and bundle, or the card if its page failed.
+
+    :param url: The absolute URL of the delivery page.
+    :param errors: The errors of loading the delivery page, set as the delivery's ``parse_errors``.
+    """
+    if delivery is None:
+        return UpcomingDelivery(
+            date=card.date,
+            change_deadline=card.change_deadline,
+            discount_tier=DiscountTier(item_count=card.discount_tier.item_count),
+            currency=card.currency,
+            delivery_bundle_id=card.delivery_bundle_id,
+            url=url,
+            parse_errors=errors,
+        )
+    delivery.parse_errors = errors
+    if delivery.date != card.date:
+        logger.warning(f"The delivery card shows {card.date}, but its page shows {delivery.date}.")
+    if delivery.discount_tier.item_count is None:
+        delivery.discount_tier.item_count = card.discount_tier.item_count
+    delivery.change_deadline = delivery.change_deadline or card.change_deadline
+    delivery.delivery_bundle_id = card.delivery_bundle_id
+    delivery.url = url
+    return delivery
