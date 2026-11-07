@@ -1,5 +1,11 @@
 # amazon-subscriptions
 
+[![PyPI](https://img.shields.io/pypi/v/amazon-subscriptions)](https://pypi.org/project/amazon-subscriptions/)
+[![Python](https://img.shields.io/pypi/pyversions/amazon-subscriptions)](https://pypi.org/project/amazon-subscriptions/)
+[![CI](https://github.com/udondan/amazon-subscriptions/actions/workflows/mr-test.yml/badge.svg?branch=main)](https://github.com/udondan/amazon-subscriptions/actions/workflows/mr-test.yml)
+[![codecov](https://codecov.io/gh/udondan/amazon-subscriptions/graph/badge.svg)](https://codecov.io/gh/udondan/amazon-subscriptions)
+[![License](https://img.shields.io/github/license/udondan/amazon-subscriptions)](LICENSE)
+
 Read Amazon Subscribe & Save subscriptions and upcoming deliveries as JSON. Strictly read-only.
 
 Built on [amazon-orders](https://github.com/alexdlaird/amazon-orders), which handles login and the session, and
