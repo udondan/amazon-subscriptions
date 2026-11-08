@@ -44,8 +44,3 @@
 
 * read the seller name of alternative offers from the offer row and add seller_id ([#6](https://github.com/udondan/amazon-subscriptions/issues/6)) ([0accfb9](https://github.com/udondan/amazon-subscriptions/commit/0accfb9d4ce017e0a3fe50e47d2d29d709fd1b38))
 * return a partial result instead of failing when a delivery or product page cannot be read ([#7](https://github.com/udondan/amazon-subscriptions/issues/7)) ([3a3f08f](https://github.com/udondan/amazon-subscriptions/commit/3a3f08f8d797a0472b6add240c3ae454bb5755d2))
-
-
-### Dependencies
-
-* **deps:** update dependency ruff to v0.16.9 ([#9](https://github.com/udondan/amazon-subscriptions/issues/9)) ([ff25334](https://github.com/udondan/amazon-subscriptions/commit/ff25334c39d4e21857432ae0b9e83ddbfbcadf92))
