@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/udondan/amazon-subscriptions/compare/v1.1.0...v1.1.1) (2026-11-08)
+
+
+### Documentation
+
+* add README badges ([#44](https://github.com/udondan/amazon-subscriptions/issues/44)) ([203f230](https://github.com/udondan/amazon-subscriptions/commit/203f230c11a52200dc12dd53245d93d29f97b8c9))
+
 ## [1.1.0](https://github.com/udondan/amazon-subscriptions/compare/v1.0.1...v1.1.0) (2026-11-01)
 
 
