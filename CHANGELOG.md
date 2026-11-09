@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.1](https://github.com/udondan/amazon-subscriptions/compare/v1.1.0...v1.1.1) (2026-11-09)
+
+
+### Dependencies
+
+* **deps:** replace amazon-orders with amazon-auth ([#52](https://github.com/udondan/amazon-subscriptions/issues/52)) ([6771e25](https://github.com/udondan/amazon-subscriptions/commit/6771e25d5584f4891139ae147f6f2352523dca62))
+* **deps:** update dependency amazon-auth to v0.2.3 ([#57](https://github.com/udondan/amazon-subscriptions/issues/57)) ([8cac493](https://github.com/udondan/amazon-subscriptions/commit/8cac493c598e6b4cb96b9465a5b669b41f34ceb2))
+* **deps:** update dependency click to v8.5.1 ([#53](https://github.com/udondan/amazon-subscriptions/issues/53)) ([3c01915](https://github.com/udondan/amazon-subscriptions/commit/3c01915265aee358258560be61471b4d8cd678e8))
+
 ## [1.1.0](https://github.com/udondan/amazon-subscriptions/compare/v1.0.1...v1.1.0) (2026-11-01)
 
 
