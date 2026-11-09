@@ -1,0 +1,9 @@
+---
+# Actions are pinned to a commit SHA. The reusable workflow of boarding-gate is
+# used by its major tag, so every release reaches this repo without update PRs.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "udondan/boarding-gate/*": ref-pin
+        "*": hash-pin
