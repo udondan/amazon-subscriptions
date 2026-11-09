@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "amazon-auth"
-version = "0.2.1"
+version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -19,9 +19,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/ce/3391cb568786ee5717b60303e383bf9d7b0276b3043134de0825bdee0dfa/amazon_auth-0.2.1.tar.gz", hash = "sha256:0e2934fb29702ff0f4ca215d1796227a9a942987e5843ff1df742e86e18fd349", size = 58043, upload-time = "2026-11-09T16:48:26.691Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/39/d9/34d9dd9ac64acbf332b577296cd46e0f4d266e8f6250c6b7376be4cd1232/amazon_auth-0.2.3.tar.gz", hash = "sha256:684ac95f8d7aff3bb3a80805ec0844416829c7566756121e00423905bb9e9a3f", size = 60309, upload-time = "2026-11-09T20:05:00.84Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/07/35798e7cb133a6b7fe1b14df30bda993cee418f7af85f4df524776c55ba8/amazon_auth-0.2.1-py3-none-any.whl", hash = "sha256:077471852e5aa435d641715d80f3316f77ff74a9834ee65b916cd56ff70982a3", size = 50996, upload-time = "2026-11-09T16:48:25.273Z" },
+    { url = "https://files.pythonhosted.org/packages/23/26/be4b6a7e988fb4e9a01ec940acb70b0062fa8098ec10ff50e0d9e3b537a1/amazon_auth-0.2.3-py3-none-any.whl", hash = "sha256:5f231b2b4bd0d8a6c38795ae332bfd8db7cdce56f85a03ff64fe6c58de3fb798", size = 52363, upload-time = "2026-11-09T20:04:59.215Z" },
 ]
 
 [[package]]
