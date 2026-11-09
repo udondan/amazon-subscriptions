@@ -40,6 +40,7 @@ PUBLIC_IDS = {
     "A2EUQ1WTGCTBG2", "A39IBJ37TRP1C6", "A21TJRUUN4KGV", "A1VC38T7YXB528", "A19VAU5U5O7RUS", "A17E79C6D8DWNP",
     "A2VIGQ35RCS4UG", "ARBP9OOSHTCHU", "A33AVAJ2PDY3EV", "AE08WJ6YKNBMC", "AMEN7PMS3EDWL", "A28R8C7NBKEWEA",
 }  # fmt: skip
+ORDER_NUMBER = "order or session number"
 CHECKS = [
     ("e-mail address", re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,}", re.IGNORECASE)),
     (
@@ -47,8 +48,8 @@ CHECKS = [
         re.compile(r"(?<![\w.,/-])(?:\+\d{1,3}[ \xa0]?|0)\d{2,5}[ \xa0/-]?\d{3,}(?:[ \xa0-]\d{2,})*(?![\w.,/-])"),
     ),
     # Order numbers in their dashed formats and as 19 digits, split to keep each pattern simple
-    ("order or session number", re.compile(r"(?<![A-Z0-9-])(?:[A-Z0-9]{3}-\d{7}|\d{4}-\d{6})-\d{7}(?![A-Z0-9-])")),
-    ("order or session number", re.compile(r"(?<![A-Z0-9-])\d{19}(?![A-Z0-9-])")),
+    (ORDER_NUMBER, re.compile(r"(?<![A-Z0-9-])(?:[A-Z0-9]{3}-\d{7}|\d{4}-\d{6})-\d{7}(?![A-Z0-9-])")),
+    (ORDER_NUMBER, re.compile(r"(?<![A-Z0-9-])\d{19}(?![A-Z0-9-])")),
     ("customer ID", re.compile(r"(?<![A-Za-z0-9])A[0-9A-Z]{11,13}(?![A-Za-z0-9])")),
     (
         "name",
@@ -128,7 +129,7 @@ _NOT_PERSONAL: dict[str, Callable[[str, str, str], bool]] = {
         or re.search(r"promotionId=$", before, re.IGNORECASE) is not None
     ),
     "name": lambda value, whole, before: value.split()[0] in NOT_NAMES,
-    "order or session number": lambda value, whole, before: set(value) <= {"0", "-"},
+    ORDER_NUMBER: lambda value, whole, before: set(value) <= {"0", "-"},
     # A year before a word, or the fake card digits before a word
     "postcode and town": lambda value, whole, before: re.match(r"(?:19|20)\d\d\b|1234\b", whole) is not None,
 }
