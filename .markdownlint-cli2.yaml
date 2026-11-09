@@ -2,6 +2,9 @@
 config:
   # Prose is written one paragraph per line, and tables and command lines can't be wrapped.
   MD013: false
+  # The README banner switches between light and dark mode with a <picture> element.
+  MD033:
+    allowed_elements: [picture, source, img]
 
 globs:
   - "**/*.md"

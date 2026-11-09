@@ -1,5 +1,11 @@
 # amazon-subscriptions
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/udondan/amazon-subscriptions/main/assets/banner-dark.webp">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/udondan/amazon-subscriptions/main/assets/banner-light.webp">
+  <img alt="amazon-subscriptions – Amazon Subscribe &amp; Save CLI" src="https://raw.githubusercontent.com/udondan/amazon-subscriptions/main/assets/banner-light.webp">
+</picture>
+
 [![PyPI](https://img.shields.io/pypi/v/amazon-subscriptions)](https://pypi.org/project/amazon-subscriptions/)
 [![Python](https://img.shields.io/pypi/pyversions/amazon-subscriptions)](https://pypi.org/project/amazon-subscriptions/)
 [![CI](https://github.com/udondan/amazon-subscriptions/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/udondan/amazon-subscriptions/actions/workflows/test.yml)

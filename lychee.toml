@@ -15,3 +15,8 @@ exclude_path = [
   ".venv",
   ".claude",
 ]
+
+exclude = [
+  # The README banner points at main, so it only resolves once the change is merged.
+  '^https://raw\.githubusercontent\.com/udondan/amazon-subscriptions/main/assets/',
+]
