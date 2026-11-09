@@ -7,6 +7,9 @@
 [![Maintainability](https://qlty.sh/gh/udondan/projects/amazon-subscriptions/maintainability.svg)](https://qlty.sh/gh/udondan/projects/amazon-subscriptions)
 [![License](https://img.shields.io/github/license/udondan/amazon-subscriptions)](LICENSE)
 
+> [!NOTE]
+> Unofficial community project. Not affiliated with, endorsed or authorized by Amazon.
+
 Read Amazon Subscribe & Save subscriptions and upcoming deliveries as JSON. Strictly read-only.
 
 Built on [amazon-orders](https://github.com/alexdlaird/amazon-orders), which handles login and the session, and
@@ -306,3 +309,10 @@ The test fixtures in `tests/fixtures/<tld>/` are anonymized English pages, see [
 how to capture and anonymize them. The product page fixtures (`product*.html`) are reduced to their title and price
 blocks with `scripts/extract_product_fixture.py`. It also keeps the variants, the comparison widget and a sponsored
 product, as prices the parser must not read.
+
+## Disclaimer
+
+This is an unofficial, independent open-source project and is not affiliated with Amazon.com, Inc. or its affiliates.
+Amazon and Subscribe & Save are trademarks of Amazon.com, Inc. or its affiliates. The names are used only to describe
+compatibility. This tool reads pages of your own Amazon account automatically, which Amazon's Conditions of Use may
+not permit. Use at your own risk and in accordance with the Conditions of Use of your Amazon site.
