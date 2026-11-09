@@ -3,9 +3,9 @@
   "extends": ["github>udondan/renovate-config"],
   "packageRules": [
     {
-      "description": "amazon-orders is a range, so installations can share it with other packages. Updates within the range only change uv.lock.",
+      "description": "amazon-auth is a range, so installations can share it with other packages. Updates within the range only change uv.lock.",
       "matchManagers": ["pep621"],
-      "matchPackageNames": ["amazon-orders"],
+      "matchPackageNames": ["amazon-auth"],
       "rangeStrategy": "update-lockfile"
     }
   ]
