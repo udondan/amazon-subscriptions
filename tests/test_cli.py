@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Iterator
 from datetime import date
 from functools import partial
@@ -61,6 +62,21 @@ def test_check_session_with_session() -> None:
     result = CliRunner().invoke(cli, ["--domain", "amazon.de", "check-session"])
     assert result.exit_code == 0, result.output
     assert "A persisted session exists" in result.output
+
+
+def test_debug_logs_amazon_subscriptions_and_amazon_auth(config_dir: Path) -> None:
+    loggers = [logging.getLogger(name) for name in ("amazon_subscriptions", "amazonauth")]
+    before = [(logger.level, list(logger.handlers)) for logger in loggers]
+    try:
+        result = CliRunner().invoke(
+            cli, ["--domain", "amazon.de", "--debug", "--output-dir", str(config_dir), "check-session"]
+        )
+        assert result.exit_code == 0, result.output
+        assert all(logger.level == logging.DEBUG for logger in loggers)
+    finally:
+        for logger, (level, handlers) in zip(loggers, before, strict=True):
+            logger.setLevel(level)
+            logger.handlers[:] = handlers
 
 
 def test_check_session() -> None:
