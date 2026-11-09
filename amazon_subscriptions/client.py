@@ -1,4 +1,4 @@
-"""Read the Subscribe & Save pages with an authenticated :class:`~amazonorders.session.AmazonSession`.
+"""Read the Subscribe & Save pages with an authenticated :class:`~amazonauth.session.AmazonSession`.
 
 The client is strictly read-only: :class:`~amazon_subscriptions.pages.PageLoader` checks every URL against
 :data:`~amazon_subscriptions.pages.READ_ONLY_URLS` before it is requested, so links and forms that change
@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 from datetime import date
 from urllib.parse import urlencode
 
-from amazonorders.constants import Constants
-from amazonorders.region_data import REGION_SITES
-from amazonorders.session import AmazonSession
+from amazonauth.constants import AuthConstants
+from amazonauth.region_data import REGION_SITES
+from amazonauth.session import AmazonSession
 from bs4 import BeautifulSoup
 
 from amazon_subscriptions.exceptions import (
@@ -59,7 +59,7 @@ class _Pages:
 class SubscriptionsClient(PageLoader):
     """Read the Subscribe & Save subscriptions and upcoming deliveries of the session's account.
 
-    :param session: A session of amazon-orders. Its cookies must hold a login (``amazon-subscriptions login``);
+    :param session: A session of amazon-auth. Its cookies must hold a login (``amazon-subscriptions login``);
         the client never logs in by itself.
     :param today: The date to resolve dates rendered without year, defaults to today.
     :param max_pages: The maximum number of further pages loaded per widget, to never loop forever.
@@ -92,18 +92,17 @@ class SubscriptionsClient(PageLoader):
         self._check_english(session.config.constants)
         self._pages: _Pages | None = None
 
-    def _check_english(self, constants: Constants) -> None:
-        """Check that amazon-orders requests the pages in English, the only language they are read in.
+    def _check_english(self, constants: AuthConstants) -> None:
+        """Check that amazon-auth requests the pages in English, the only language they are read in.
 
-        :raises SubscriptionsError: If a ``language_package`` or ``constants_class`` requests another language.
+        :raises SubscriptionsError: If a ``constants_class`` requests another language.
         """
         site = REGION_SITES[tld_of(self.base_url)]
         if site.language_cookie and constants.REQUEST_COOKIES.get(site.language_cookie) != site.english_locale:
             raise SubscriptionsError(
-                f"amazon-orders is configured to request the pages of {self.base_url} in another language than "
+                f"amazon-auth is configured to request the pages of {self.base_url} in another language than "
                 f"English (cookie {site.language_cookie}={constants.REQUEST_COOKIES.get(site.language_cookie)!r}). "
-                "Remove the language_package or constants_class from its configuration, only English pages can be "
-                "read."
+                "Remove the constants_class from its configuration, only English pages can be read."
             )
 
     def get_subscriptions(self) -> list[Subscription]:

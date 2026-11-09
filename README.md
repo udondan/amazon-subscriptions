@@ -12,7 +12,7 @@
 
 Read Amazon Subscribe & Save subscriptions and upcoming deliveries as JSON. Strictly read-only.
 
-Built on [amazon-orders](https://github.com/alexdlaird/amazon-orders), which handles login and the session, and
+Built on [amazon-auth](https://github.com/alexdlaird/amazon-auth), which handles login and the session, and
 requests every page in English, whatever language the account is set to. Every Amazon site that offers its pages in
 English is supported; so far it is tested with amazon.de. See [Other sites](#other-sites).
 
@@ -43,7 +43,7 @@ Or from a checkout, prefixing the commands below with `uv run`:
 uv sync
 ```
 
-The installation includes amazon-orders; its CLI is not needed.
+The installation includes amazon-auth, which handles login and the session.
 
 ## Usage
 
@@ -58,13 +58,13 @@ amazon-subscriptions check-session
 amazon-subscriptions logout
 ```
 
-`login`, `logout` and `check-session` are the commands of amazon-orders. Each Amazon site has its own session, stored
-in `~/.config/amazonorders/cookies.<site>.json` (e.g. `cookies.amazon.de.json`, for amazon.com `cookies.json`) and
-shared with amazon-orders. A session that older versions of amazon-orders stored in `cookies.json` for another site is
-still used. Credentials are only asked for by `login` and never stored; the other commands never log in by themselves.
-`login` signs out of the site's stored session first, so it always starts a new one. `login --browser` signs in
-through a browser window instead, which needs the `browser` extra of amazon-orders. `check-session --verify` asks
-Amazon whether it still accepts the session.
+`login`, `logout` and `check-session` are the commands of amazon-auth. Each Amazon site has its own session, stored in
+`~/.config/amazonorders/cookies.<site>.json` (e.g. `cookies.amazon.de.json`, for amazon.com `cookies.json`) and shared
+with amazon-orders. A session that older versions of amazon-orders stored in `cookies.json` for another site is still
+used. Credentials are only asked for by `login` and never stored; the other commands never log in by themselves.
+`login` signs out of the site's stored session first, so it always starts a new one. `login --browser` signs in through
+a browser window instead, which needs the `browser` extra of amazon-auth. `check-session --verify` asks Amazon whether
+it still accepts the session.
 
 A `language_package` configured for amazon-orders is ignored, as the pages are only read in English. The configuration
 file is not changed.
@@ -234,13 +234,13 @@ A list of deliveries:
 ## Library
 
 ```python
-from amazonorders.conf import AmazonOrdersConfig
-from amazonorders.session import AmazonSession
+from amazonauth.conf import AmazonAuthConfig
+from amazonauth.session import AmazonSession
 
 from amazon_subscriptions.client import SubscriptionsClient
 from amazon_subscriptions.serialize import to_json
 
-session = AmazonSession(config=AmazonOrdersConfig())  # logged in with `amazon-subscriptions login`
+session = AmazonSession(config=AmazonAuthConfig())  # logged in with `amazon-subscriptions login`
 client = SubscriptionsClient(session)  # with_prices=True also loads the product pages
 print(to_json(client.get_subscriptions()))
 print(to_json(client.get_upcoming_deliveries()))
@@ -286,7 +286,7 @@ amazon.com.br, amazon.com.mx, amazon.com.tr and amazon.pl, are refused.
 
 Only amazon.de has been tested so far. On other sites, the texts, the markup of the pages or the URLs may differ, so
 some values may be missing (with a warning or an `[incomplete]` result) or a page may not be read at all. Login,
-session and cookies are handled by amazon-orders for all sites.
+session and cookies are handled by amazon-auth for all sites.
 
 If you use another site, please contribute anonymized pages of it, so it can be tested.
 [CONTRIBUTING.md](CONTRIBUTING.md) explains step by step how to capture and anonymize them.

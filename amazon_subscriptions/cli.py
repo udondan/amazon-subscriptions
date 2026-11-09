@@ -1,16 +1,16 @@
 """The ``amazon-subscriptions`` command.
 
-``login``, ``logout`` and ``check-session`` are the commands of amazon-orders, so the session is shared with it.
+``login``, ``logout`` and ``check-session`` are the commands of amazon-auth, so the session is shared with it.
 """
 
 import logging
 from typing import Any
 
 import click
-from amazonorders.cli import IOClick, check_session, login, logout
-from amazonorders.conf import AmazonOrdersConfig
-from amazonorders.exception import AmazonOrdersError
-from amazonorders.session import AmazonSession
+from amazonauth.cli import IOClick, check_session, login, logout
+from amazonauth.conf import AmazonAuthConfig
+from amazonauth.exception import AmazonAuthError
+from amazonauth.session import AmazonSession
 
 from amazon_subscriptions.client import SubscriptionsClient
 from amazon_subscriptions.exceptions import SessionExpiredError, SubscriptionsError
@@ -29,7 +29,7 @@ class _Group(click.Group):
             raise click.ClickException(
                 f"{e} Sign in again with:\n  amazon-subscriptions{domain} logout\n  amazon-subscriptions{domain} login"
             ) from e
-        except (SubscriptionsError, AmazonOrdersError) as e:
+        except (SubscriptionsError, AmazonAuthError) as e:
             logging.getLogger(__name__).debug("An error occurred.", exc_info=True)
             raise click.ClickException(str(e)) from e
 
@@ -37,7 +37,7 @@ class _Group(click.Group):
 @click.group(cls=_Group)
 @click.option(
     "--domain",
-    help="The Amazon domain, e.g. amazon.de. Defaults to the domain configured for amazon-orders.",
+    help="The Amazon domain, e.g. amazon.de. Defaults to the domain configured for amazon-auth.",
 )
 @click.option(
     "--debug",
@@ -51,20 +51,18 @@ def cli(ctx: click.Context, domain: str | None, debug: bool, output_dir: str | N
     """Read Amazon Subscribe & Save subscriptions and upcoming deliveries. Strictly read-only."""
     if debug:
         handler = logging.StreamHandler()
-        for name in ("amazon_subscriptions", "amazonorders"):
+        for name in ("amazon_subscriptions", "amazonauth"):
             logging.getLogger(name).setLevel(logging.DEBUG)
             logging.getLogger(name).addHandler(handler)
 
-    # The pages are only read in English, which amazon-orders requests unless a language package is configured.
-    # This only applies to this run, the configuration file is not changed.
-    data: dict[str, Any] = {"language_package": None}
+    data: dict[str, Any] = {}
     if domain:
         data["domain"] = domain
     if output_dir:
         data["output_dir"] = output_dir
-    conf = AmazonOrdersConfig(data=data)
+    conf = AmazonAuthConfig(data=data)
     ctx.ensure_object(dict)
-    # The keys the commands of amazon-orders expect
+    # The keys the commands of amazon-auth expect
     ctx.obj["conf"] = conf
     ctx.obj["amazon_session"] = AmazonSession(debug=debug, io=IOClick(), config=conf)
 

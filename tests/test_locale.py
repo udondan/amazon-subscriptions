@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 import pytest
-from amazonorders.region_data import REGION_SITES
+from amazonauth.region_data import REGION_SITES
 
 from amazon_subscriptions.dates import DateParts
 from amazon_subscriptions.exceptions import SubscriptionsError

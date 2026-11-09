@@ -1,7 +1,6 @@
 from urllib.parse import urlparse
 
-from amazonorders.constants import Constants
-from amazonorders.region_data import REGION_SITES
+from amazonauth.region_data import REGION_SITES
 
 from amazon_subscriptions.exceptions import SubscriptionsError
 from amazon_subscriptions.locales.base import SubscriptionLocale
@@ -9,7 +8,7 @@ from amazon_subscriptions.locales.en import EnglishSubscriptionLocale
 
 #: ISO 4217 code of the currency of each Amazon site, keyed by the TLD suffix that follows ``amazon.``.
 #:
-#: amazon-orders only knows the symbol a site shows its prices with, and ``$`` alone does not tell US, Canadian and
+#: amazon-auth only knows the symbol a site shows its prices with, and ``$`` alone does not tell US, Canadian and
 #: Australian dollars apart. The pages never show the code.
 SITE_CURRENCIES: dict[str, str] = {
     "ae": "AED",
@@ -50,7 +49,7 @@ def tld_of(domain_or_url: str) -> str:
 def get_locale(domain_or_url: str) -> SubscriptionLocale:
     """The locale of a storefront, given by domain (``amazon.de``) or base URL (``https://www.amazon.de``).
 
-    Every storefront that offers its pages in English is supported, as amazon-orders requests them in English.
+    Every storefront that offers its pages in English is supported, as amazon-auth requests them in English.
 
     :raises SubscriptionsError: If the storefront is not known or offers no English pages.
     """
@@ -62,7 +61,7 @@ def get_locale(domain_or_url: str) -> SubscriptionLocale:
         raise SubscriptionsError(
             f"amazon.{tld} does not offer its pages in English, which is the only language supported."
         )
-    return EnglishSubscriptionLocale(SITE_CURRENCIES[tld], Constants.region_currency_symbol(tld))
+    return EnglishSubscriptionLocale(SITE_CURRENCIES[tld], site.currency_symbol)
 
 
 __all__ = ["SITE_CURRENCIES", "EnglishSubscriptionLocale", "SubscriptionLocale", "get_locale", "tld_of"]

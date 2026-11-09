@@ -1,4 +1,4 @@
-"""Request the Subscribe & Save pages with an authenticated :class:`~amazonorders.session.AmazonSession`.
+"""Request the Subscribe & Save pages with an authenticated :class:`~amazonauth.session.AmazonSession`.
 
 Every URL is checked against :data:`READ_ONLY_URLS` before it is requested, so links and forms that change
 subscriptions (skip, pause, cancel, deliver now, ...) can never be requested, even if a page changes.
@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import TypeVar
 from urllib.parse import urlencode, urljoin, urlparse
 
-from amazonorders.session import AmazonSession
+from amazonauth.session import AmazonSession
 from bs4 import BeautifulSoup
 from requests import RequestException, Response
 
@@ -80,7 +80,7 @@ def default_failed_dir() -> str:
 class PageLoader:
     """Load the read-only pages of the session's Amazon site, retry those that fail and save them for analysis.
 
-    :param session: A session of amazon-orders with a login.
+    :param session: A session of amazon-auth with a login.
     :param max_pages: The maximum number of further pages loaded per widget, to never loop forever.
     :param retry_delay: Seconds to wait before loading a page a second time that could not be loaded or read.
     :param failed_dir: The directory where pages that could not be read are saved, defaults to

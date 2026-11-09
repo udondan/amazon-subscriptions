@@ -8,8 +8,8 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 import responses
-from amazonorders.conf import AmazonOrdersConfig
-from amazonorders.session import AmazonSession
+from amazonauth.conf import AmazonAuthConfig
+from amazonauth.session import AmazonSession
 from bs4 import BeautifulSoup
 from requests import PreparedRequest
 
@@ -173,8 +173,8 @@ def register_broken_delivery_1(mock: responses.RequestsMock, times: int = 2) -> 
 
 
 def make_session(tmp_path: Path, domain: str = "amazon.de", logged_in: bool = True, debug: bool = False) -> Any:
-    """A session of amazon-orders that only uses files below ``tmp_path``."""
-    config = AmazonOrdersConfig(
+    """A session of amazon-auth that only uses files below ``tmp_path``."""
+    config = AmazonAuthConfig(
         config_path=str(tmp_path / "config.yml"),
         data={
             "domain": domain,

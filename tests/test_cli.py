@@ -4,11 +4,12 @@ from datetime import date
 from functools import partial
 from pathlib import Path
 
-import amazonorders.cli
-import amazonorders.conf
+import amazonauth.cli
+import amazonauth.conf
+import click
 import pytest
 import responses
-from amazonorders.conf import AmazonOrdersConfig
+from amazonauth.conf import AmazonAuthConfig
 from click.testing import CliRunner
 
 from amazon_subscriptions import cli as cli_module
@@ -27,8 +28,8 @@ from tests.conftest import (
 
 @pytest.fixture(autouse=True)
 def config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Keep the config and cookies of amazon-orders below ``tmp_path``."""
-    monkeypatch.setattr(amazonorders.conf, "DEFAULT_CONFIG_DIR", str(tmp_path))
+    """Keep the config and cookies of amazon-auth below ``tmp_path``."""
+    monkeypatch.setattr(amazonauth.conf, "DEFAULT_CONFIG_DIR", str(tmp_path))
     monkeypatch.setattr(cli_module, "SubscriptionsClient", partial(SubscriptionsClient, today=DE_TODAY))
     return tmp_path
 
@@ -40,12 +41,19 @@ def mock() -> Iterator[responses.RequestsMock]:
 
 
 def log_in(domain: str) -> None:
-    store_login_cookies(AmazonOrdersConfig(data={"domain": domain}))
+    store_login_cookies(AmazonAuthConfig(data={"domain": domain}))
 
 
-@pytest.mark.parametrize("name", ["login", "logout", "check-session"])
-def test_session_commands_are_those_of_amazon_orders(name: str) -> None:
-    assert cli.commands[name] is amazonorders.cli.amazon_orders_cli.commands[name]
+@pytest.mark.parametrize(
+    ("name", "command"),
+    [
+        ("login", amazonauth.cli.login),
+        ("logout", amazonauth.cli.logout),
+        ("check-session", amazonauth.cli.check_session),
+    ],
+)
+def test_session_commands_are_those_of_amazon_auth(name: str, command: click.Command) -> None:
+    assert cli.commands[name] is command
 
 
 def test_check_session_with_session() -> None:
@@ -71,7 +79,7 @@ def test_logout(config_dir: Path, mock: responses.RequestsMock) -> None:
 
 def test_uses_a_session_of_the_cookie_jar_shared_by_all_sites(config_dir: Path) -> None:
     """amazon-orders kept the sessions of all sites in one jar before each site had its own."""
-    cookies = dict.fromkeys(AmazonOrdersConfig(data={"domain": "amazon.de"}).constants.COOKIES_SET_WHEN_AUTHENTICATED)
+    cookies = dict.fromkeys(AmazonAuthConfig(data={"domain": "amazon.de"}).constants.COOKIES_SET_WHEN_AUTHENTICATED)
     jar = [{"name": name, "value": "test", "domain": ".amazon.de"} for name in cookies]
     (config_dir / "cookies.json").write_text(json.dumps(jar), encoding="utf-8")
     result = CliRunner().invoke(cli, ["--domain", "amazon.de", "check-session"])
@@ -89,7 +97,7 @@ def test_uses_a_session_of_the_cookie_jar_shared_by_all_sites(config_dir: Path) 
 def test_expired_session_shows_how_to_log_in(
     args: list[str], hint: str, config_dir: Path, mock: responses.RequestsMock
 ) -> None:
-    # Without --domain, the domain configured for amazon-orders is used
+    # Without --domain, the domain configured for amazon-auth is used
     (config_dir / "config.yml").write_text("domain: amazon.de\n")
     result = CliRunner().invoke(cli, [*args, "list"])
     assert result.exit_code == 1

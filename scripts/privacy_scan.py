@@ -22,7 +22,6 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import NamedTuple
 
-from amazonorders.constants import Constants
 from bs4 import BeautifulSoup
 
 #: Values the anonymizers write themselves
@@ -47,7 +46,10 @@ CHECKS = [
         "phone number",
         re.compile(r"(?<![\w.,/-])(?:\+\d{1,3}[ \xa0]?|0)\d{2,5}[ \xa0/-]?\d{3,}(?:[ \xa0-]\d{2,})*(?![\w.,/-])"),
     ),
-    ("order or session number", re.compile(Constants.ORDER_NUMBER_REGEX)),
+    (
+        "order or session number",
+        re.compile(r"(?<![A-Z0-9-])(?:[A-Z0-9]{3}-\d{7}-\d{7}|\d{4}-\d{6}-\d{7}|\d{19})(?![A-Z0-9-])"),
+    ),
     ("customer ID", re.compile(r"(?<![A-Za-z0-9])A[0-9A-Z]{11,13}(?![A-Za-z0-9])")),
     (
         "name",
