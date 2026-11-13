@@ -1,0 +1,42 @@
+---
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/amazon-subscriptions
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Refuse dependencies by URL
+        run: |
+          if grep -n ' @ git+' pyproject.toml; then
+            echo "::error file=pyproject.toml::PyPI rejects dependencies by URL. Require a released version instead."
+            exit 1
+          fi
+
+      # No cache in the release, a poisoned cache would end up in the published package.
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          cache: false
+
+      - name: Build
+        run: uv build
+
+      # Trusted publishing: PyPI trusts this workflow and the pypi environment, no token needed.
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3

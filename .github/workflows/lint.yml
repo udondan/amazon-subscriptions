@@ -1,0 +1,87 @@
+---
+name: Lint
+
+on:
+  # Called by test.yml, so its required job covers the linters too.
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Python is linted in test.yml. Each linter here is its own job so a failure names the file type. The linters'
+# versions are in mise.toml, where Renovate updates them.
+jobs:
+  markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Files and rules come from .markdownlint-cli2.yaml, whose globs add to the action's default of the root files.
+      - uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34 # v25.0.0
+
+  markdown-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Restore lychee cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .lycheecache
+          key: lychee-${{ github.sha }}
+          restore-keys: lychee-
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          install_args: lychee
+
+      - name: lychee
+        env:
+          # Authenticated requests to GitHub links are not rate limited as quickly.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: lychee --config lychee.toml --no-progress README.md
+
+  yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          install_args: python uv pypi:yamllint
+
+      # Files and rules come from .yamllint.yml.
+      - name: yamllint
+        run: yamllint --strict --format github .
+
+  actions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          install_args: actionlint shellcheck
+
+      # Also runs shellcheck over every `run:` block.
+      - name: actionlint
+        run: actionlint
+
+  json:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Syntax only: release-please owns the formatting of the files it writes.
+      - name: jq
+        run: git ls-files -z '*.json' | xargs -0 -n1 jq empty
