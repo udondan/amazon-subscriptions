@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/udondan/amazon-subscriptions/compare/v1.1.2...v1.1.3) (2026-11-13)
+
+
+### Bug Fixes
+
+* **deps:** raise minimum Python to 3.11.5 to fix security alert ([#62](https://github.com/udondan/amazon-subscriptions/issues/62)) ([88be4f1](https://github.com/udondan/amazon-subscriptions/commit/88be4f1e5fd7e276338bbe57aa9f6d351478675e))
+
 ## [1.1.2](https://github.com/udondan/amazon-subscriptions/compare/v1.1.1...v1.1.2) (2026-11-12)
 
 
