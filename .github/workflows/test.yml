@@ -174,7 +174,7 @@ jobs:
   lint:
     needs: boarding-gate
     if: ${{ !cancelled() && (needs.boarding-gate.result == 'success' || needs.boarding-gate.result == 'skipped') }}
-    uses: ./.github/workflows/lint.yml
+    uses: $/.github/workflows/lint.yml
 
   # The linters and code smells of Qlty Cloud, configured in .qlty/qlty.toml. On pull requests, only smells introduced
   # compared to main fail the job.
