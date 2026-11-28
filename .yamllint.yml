@@ -1,0 +1,17 @@
+---
+extends: default
+
+ignore: |
+  .venv/
+  .claude/
+
+rules:
+  # `on:` is a workflow key, not a boolean.
+  truthy:
+    check-keys: false
+  # Workflow comments and step commands explain themselves on one line.
+  line-length:
+    max: 160
+  # SHA-pinned actions carry their version as `@sha # vX.Y.Z`.
+  comments:
+    min-spaces-from-content: 1
