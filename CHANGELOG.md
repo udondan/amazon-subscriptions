@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/udondan/amazon-subscriptions/compare/v1.1.3...v1.1.4) (2026-11-28)
+
+
+### Dependencies
+
+* **deps:** update dependency amazon-auth to v1.1.1 ([#82](https://github.com/udondan/amazon-subscriptions/issues/82)) ([f3e4dfc](https://github.com/udondan/amazon-subscriptions/commit/f3e4dfc1e92efe61cbb1b133df077881a232e731))
+
 ## [1.1.3](https://github.com/udondan/amazon-subscriptions/compare/v1.1.2...v1.1.3) (2026-11-16)
 
 
